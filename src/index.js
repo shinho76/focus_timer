@@ -1,26 +1,776 @@
 /**
- * <focus-timer> custom element entry point. Assembles core/ports/view/input/runtime.
- * This file is intentionally a thin skeleton until all modules land — see
- * CLAUDE.md "파일 소유권" for which files are owned by which workstream.
+ * <focus-timer> — 통합 조립 (index.js). 다른 워크스트림이 만든 core/ports/view/input/runtime
+ * 를 여기서만 서로 연결한다 (CLAUDE.md: 이 파일은 "integration" 소유).
+ *
+ * 흐름: idle → (다이얼 드래그) → setting → (손을 떼면) running → 0 도달 → ringing → acknowledge → idle
  */
+
+import { createClock } from './core/clock.js';
+import { createSchedule } from './core/schedule.js';
+import { createMachine } from './core/machine.js';
+import { snapMinutes } from './core/angle.js';
+
+import { createAudioPort } from './ports/audio.js';
+import { createStoragePort } from './ports/storage.js';
+import { createNotifierPort } from './ports/notifier.js';
+
+import { renderDial, applyStyles, resetDial } from './view/dial.js';
+import { renderReadout, resetReadout } from './view/readout.js';
+import CSS_TEXT from './view/styles.css';
+
+import { attachPointer } from './input/pointer.js';
+import {
+  attachKeyboard,
+  attachPreset,
+  attachDelta,
+  attachNumberInput,
+  PRESET_MINUTES,
+  DELTA_STEPS,
+} from './input/keyboard.js';
+
+import { attachLifecycle } from './runtime/lifecycle.js';
+import { createLeaderElection } from './runtime/leader.js';
+import { claimTitle, releaseTitle, setTitle } from './runtime/docowner.js';
+import { createPomodoro, POMODORO_PRESETS } from './modes/pomodoro.js';
+
+const GRACE_MS = 90_000;
+let seq = 0;
+
+/** Real browser time port. `Date.now`/`performance.now` live ONLY here. */
+function realPort() {
+  return {
+    wall: () => Date.now(),
+    mono: () => performance.now(),
+    setTimeout: (fn, ms) => window.setTimeout(fn, ms),
+    clearTimeout: (id) => window.clearTimeout(id),
+  };
+}
+
+function el(tag, attrs, ...children) {
+  const node = document.createElement(tag);
+  if (attrs) {
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v == null) continue;
+      if (k === 'class') node.className = v;
+      else node.setAttribute(k, v);
+    }
+  }
+  for (const c of children) if (c != null) node.append(c);
+  return node;
+}
+
 class FocusTimer extends HTMLElement {
+  static get observedAttributes() {
+    return ['theme', 'gauge', 'volume', 'alarm-length', 'flash', 'notify'];
+  }
+
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
+    this._instanceId = `ft-${++seq}-${Math.random().toString(36).slice(2, 8)}`;
+    this._destroyed = false;
+    this._unsubs = [];
+    this._selectedMinutes = 0;
+    this._totalMs = 0;
+    this._pomodoro = null;
   }
 
+  // ---- 공개 읽기 전용 속성 (spec §10) --------------------------------------
+  get state() {
+    return this._machine ? this._machine.state : 'idle';
+  }
+  get mode() {
+    return this._cfg ? this._cfg.mode : 'simple';
+  }
+  get phase() {
+    return this._pomodoro ? this._pomodoro.phase : 'focus';
+  }
+  get remainingMs() {
+    return this._schedule ? this._schedule.remainingMs : 0;
+  }
+  get totalMs() {
+    return this._totalMs;
+  }
+  get progress() {
+    return this._totalMs > 0 ? Math.max(0, Math.min(1, this.remainingMs / this._totalMs)) : 1;
+  }
+  get cycleIndex() {
+    return this._pomodoro ? this._pomodoro.cycleIndex : 0;
+  }
+  get completedToday() {
+    return this._completedToday || 0;
+  }
+  get isLeader() {
+    return this._leader ? this._leader.isLeader : true;
+  }
+  get capabilities() {
+    return {
+      audio: typeof (window.AudioContext || window.webkitAudioContext) === 'function',
+      notification: typeof window.Notification === 'function',
+      wakeLock: 'wakeLock' in navigator,
+      locks: !!(navigator.locks && typeof navigator.locks.request === 'function'),
+      persist: this._storage ? this._storage.isPersisted : false,
+    };
+  }
+
+  // ---- lifecycle ------------------------------------------------------------
   connectedCallback() {
-    // TODO(integration): assemble core/ports/view/input/runtime once modules land.
+    if (this._built) return;
+    this._built = true;
+    this._readConfig();
+    this._buildPorts();
+    this._buildCore();
+    this._buildShadow();
+    this._wireInput();
+    this._wireRuntime();
+    this._restoreOrInit();
+    this._render();
   }
 
   disconnectedCallback() {
-    // TODO(integration): teardown.
+    this.destroy();
+  }
+
+  attributeChangedCallback(name, oldV, newV) {
+    if (!this._built || oldV === newV) return;
+    if (name === 'gauge') this._cfg.gauge = newV === 'segments' ? 'segments' : 'sector';
+    if (name === 'theme' || name === 'gauge') this._render();
+    if (name === 'volume') this._cfg.volume = this._parseVolume(newV);
+    if (name === 'alarm-length') this._cfg.alarmLength = Number(newV) || this._cfg.alarmLength;
+    if (name === 'flash') this._cfg.flash = newV !== 'off';
+    if (name === 'notify') this._cfg.notify = newV === 'on';
+  }
+
+  // ---- 설정 ------------------------------------------------------------------
+  _readConfig() {
+    const attr = (name, def) => (this.hasAttribute(name) ? this.getAttribute(name) : def);
+    this._cfg = {
+      mode: attr('mode', 'simple') === 'pomodoro' ? 'pomodoro' : 'simple',
+      gauge: attr('gauge', 'sector') === 'segments' ? 'segments' : 'sector',
+      maxMinutes: Math.max(1, Number(attr('max-minutes', 60)) || 60),
+      defaultMinutes: Math.max(1, Number(attr('default-minutes', 50)) || 50),
+      autostartOnRelease: attr('autostart-on-release', 'on') !== 'off',
+      alarmLength: Number(attr('alarm-length', 30)) === 3 ? 3 : 30,
+      volume: this._parseVolume(attr('volume', '0.35')),
+      flash: attr('flash', 'on') !== 'off',
+      notify: attr('notify', 'off') === 'on',
+      titleSync: attr('title-sync', 'running') !== 'off',
+      persist: attr('persist', 'local') !== 'off',
+      storageKey: attr('storage-key', 'focus-timer.v1'),
+      lang: attr('lang', 'ko'),
+    };
+    this._selectedMinutes = this._cfg.defaultMinutes;
+  }
+
+  _parseVolume(raw) {
+    const n = Number(raw);
+    if (n <= 0) return 0;
+    if (n >= 0.6) return 0.8;
+    if (n >= 0.2) return 0.35;
+    return n === 0.35 || n === 0.8 ? n : 0.35;
+  }
+
+  // ---- 포트/코어 조립 ----------------------------------------------------------
+  _buildPorts() {
+    const AudioCtor = window.AudioContext || window.webkitAudioContext;
+    this._audio = createAudioPort(AudioCtor);
+    this._notifier = createNotifierPort(window.Notification, window);
+    this._storage = this._cfg.persist
+      ? createStoragePort(window.localStorage, `${this._cfg.storageKey}:record`, {
+          now: () => Date.now(),
+        })
+      : null;
+    if (this._storage) {
+      this._storage.onPersistenceLost(() => {
+        this._persistenceNoticeShown = true;
+        this._render();
+      });
+    }
+  }
+
+  _buildCore() {
+    this._port = realPort();
+    this._clock = createClock(this._port);
+    this._schedule = createSchedule(this._clock);
+    this._machine = createMachine('idle');
+
+    this._unsubs.push(
+      this._machine.on('statechange', (change) => {
+        this._dispatch('ft:statechange', change);
+      }),
+    );
+    this._unsubs.push(
+      this._clock.on('tick', ({ remainingMs }) => {
+        this._dispatch('ft:tick', { remainingMs, totalMs: this._totalMs });
+        this._render();
+        this._maybeSave();
+      }),
+    );
+    this._unsubs.push(
+      this._clock.on('clockanomaly', (detail) => this._dispatch('ft:clockanomaly', detail)),
+    );
+    this._unsubs.push(this._clock.on('expire', () => this._onExpire()));
+
+    if (this._cfg.mode === 'pomodoro') {
+      this._pomodoro = createPomodoro(this._schedule, this._readPomodoroConfig());
+    }
+  }
+
+  _readPomodoroConfig() {
+    const attr = (name) => (this.hasAttribute(name) ? this.getAttribute(name) : undefined);
+    const preset = attr('pomodoro-preset');
+    return {
+      preset: preset && POMODORO_PRESETS[preset] ? preset : undefined,
+    };
+  }
+
+  // ---- shadow DOM --------------------------------------------------------------
+  _buildShadow() {
+    applyStyles(this.shadowRoot, CSS_TEXT);
+
+    const widget = el('div', { class: 'ft-widget', part: 'controls' });
+
+    this._dialContainer = el('div');
+    widget.append(this._dialContainer);
+
+    this._readoutContainer = el('div');
+    widget.append(this._readoutContainer);
+
+    this._liveRegion = el('div', {
+      'aria-live': 'polite',
+      class: 'ft-sr-only',
+    });
+    widget.append(this._liveRegion);
+
+    this._banner = el('div', { class: 'ft-banner', hidden: '' });
+    widget.append(this._banner);
+
+    const controls = el('div', { class: 'ft-controls', part: 'controls' });
+    this._presetButtons = PRESET_MINUTES.map((m) =>
+      el('button', { type: 'button', 'data-minutes': String(m) }, String(m)),
+    );
+    this._presetButtons.forEach((b) => controls.append(b));
+
+    this._deltaButtons = DELTA_STEPS.map((d) =>
+      el('button', { type: 'button', 'data-delta': String(d) }, d > 0 ? `+${d}` : String(d)),
+    );
+    this._deltaButtons.forEach((b) => controls.append(b));
+
+    this._numberInput = el('input', {
+      type: 'number',
+      min: '1',
+      max: String(this._cfg.maxMinutes),
+      'aria-label': '분 직접 입력',
+    });
+    controls.append(this._numberInput);
+
+    this._primaryBtn = el('button', { type: 'button', part: 'pause-button' }, '시작');
+    controls.append(this._primaryBtn);
+
+    this._resetBtn = el('button', { type: 'button' }, '리셋');
+    controls.append(this._resetBtn);
+
+    this._previewBtn = el('button', { type: 'button' }, '알람 미리 듣기');
+    controls.append(this._previewBtn);
+
+    widget.append(controls);
+    this.shadowRoot.append(widget);
+
+    this._widget = widget;
+  }
+
+  // ---- 입력 배선 -----------------------------------------------------------------
+  _wireInput() {
+    const dialData = () => ({
+      minutes:
+        this._machine.state === 'idle' || this._machine.state === 'setting'
+          ? this._selectedMinutes
+          : Math.round(this._totalMs / 60000),
+      maxMinutes: this._cfg.maxMinutes,
+      progress: this._machine.state === 'idle' || this._machine.state === 'setting' ? 1 : this.progress,
+      gauge: this._cfg.gauge,
+      disabled: this._machine.state !== 'idle' && this._machine.state !== 'setting',
+      unit: '분',
+      label: '집중 시간',
+      locale: this._cfg.lang,
+    });
+
+    this._dialEl = renderDial(this._dialContainer, dialData());
+
+    this._pointer = attachPointer(this._dialEl, {
+      minRadiusRatio: 0.2,
+      minMinutes: 1,
+      maxMinutes: this._cfg.maxMinutes,
+      getMinutes: () => this._selectedMinutes,
+      disabled: () => this._machine.state !== 'idle' && this._machine.state !== 'setting',
+      onUnlockHint: () => this._audio.unlock(),
+      onAngleChange: (minutes) => {
+        if (this._machine.state === 'idle') this._machine.send('dialdown');
+        this._selectedMinutes = minutes;
+        this._dispatch('ft:set', { minutes });
+        this._render();
+      },
+      onCommit: (minutes) => {
+        this._selectedMinutes = minutes;
+        if (this._cfg.autostartOnRelease) {
+          if (this._machine.send('dialup')) this._startTimer(minutes);
+        } else {
+          this._render();
+        }
+      },
+      onCancel: () => {
+        if (this._machine.state === 'setting') this._machine.send('dialcancel');
+        this._render();
+      },
+    });
+
+    this._keyboard = attachKeyboard(this._dialEl, {
+      min: 1,
+      max: this._cfg.maxMinutes,
+      disabled: () => this._machine.state !== 'idle' && this._machine.state !== 'setting',
+      onDelta: (d) => this._adjustMinutes(d),
+      onSet: (m) => this._setMinutesDirect(m),
+      onActivate: () => this.toggle(),
+    });
+
+    this._presetDetach = this._presetButtons.map((b) =>
+      attachPreset(b, Number(b.dataset.minutes), (m) => this._setMinutesDirect(m)),
+    );
+    this._deltaDetach = this._deltaButtons.map((b) =>
+      attachDelta(b, Number(b.dataset.delta), (d) => this._adjustMinutes(d)),
+    );
+    this._numberDetach = attachNumberInput(this._numberInput, (m) => this._setMinutesDirect(m), {
+      min: 1,
+      max: this._cfg.maxMinutes,
+    });
+
+    this._onPrimary = () => this.toggle();
+    this._primaryBtn.addEventListener('click', this._onPrimary);
+    this._onReset = () => this.reset();
+    this._resetBtn.addEventListener('click', this._onReset);
+    this._onPreview = () => this._audio.previewAlarm(this._cfg.volume);
+    this._previewBtn.addEventListener('click', this._onPreview);
+  }
+
+  _setMinutesDirect(minutes) {
+    const state = this._machine.state;
+    if (state !== 'idle' && state !== 'setting') return;
+    if (state === 'idle') this._machine.send('dialdown');
+    this._selectedMinutes = snapMinutes(minutes, 1);
+    this._dispatch('ft:set', { minutes: this._selectedMinutes });
+    if (this._cfg.autostartOnRelease && state === 'idle') {
+      // 프리셋/숫자 입력도 드래그와 동등 지위 — 자동 시작 정책을 그대로 따른다.
+      if (this._machine.send('dialup')) {
+        this._startTimer(this._selectedMinutes);
+        return;
+      }
+    }
+    this._render();
+  }
+
+  _adjustMinutes(delta) {
+    if (this._machine.state === 'running') {
+      // §2.3: 실행 중 ±1분 미세 조정 — 남은 시간을 직접 늘리거나 줄인다.
+      this.extend(delta * 60000);
+      return;
+    }
+    const next = Math.max(1, Math.min(this._cfg.maxMinutes, this._selectedMinutes + delta));
+    this._setMinutesDirect(next);
+  }
+
+  // ---- 런타임 배선 (라이프사이클/리더/타이틀) --------------------------------------
+  _wireRuntime() {
+    this._lifecycleOff = attachLifecycle(window, document, {
+      clock: this._clock,
+      onHide: () => {
+        this._clock.markGap();
+        this._maybeSave(true);
+      },
+      onShow: () => this._reconcile(),
+      onRestore: () => this._reconcile(),
+      onResume: () => this._reconcile(),
+    });
+
+    this._leader = createLeaderElection(navigator.locks, `${this._cfg.storageKey}:leader-ch`, {
+      storage: window.localStorage,
+      clock: {
+        wall: this._port.wall,
+        setTimeout: this._port.setTimeout,
+        clearTimeout: this._port.clearTimeout,
+      },
+      instanceId: this._instanceId,
+      lockName: `${this._cfg.storageKey}:leader`,
+      storageKey: `${this._cfg.storageKey}:leader-hb`,
+    });
+    this._leaderOff = this._leader.onLeaderChange(() => this._render());
+  }
+
+  // ---- 복원 -----------------------------------------------------------------------
+  _restoreOrInit() {
+    if (!this._storage) return;
+    const rec = this._storage.load();
+    if (!rec) return;
+
+    const nowWall = this._port.wall();
+
+    if (rec.state === 'paused' && typeof rec.remainingMs === 'number') {
+      this._totalMs = rec.totalMs || rec.remainingMs;
+      this._schedule.start(rec.remainingMs);
+      this._schedule.pause();
+      this._machine.send('dialdown');
+      this._machine.send('dialup');
+      this._machine.send('pause');
+      this._render();
+      return;
+    }
+
+    if (rec.state === 'running' && typeof rec.deadlineWall === 'number') {
+      const overdueMs = nowWall - rec.deadlineWall;
+      this._totalMs = rec.totalMs || 0;
+      if (overdueMs < 0) {
+        // 아직 안 끝났다 — 그대로 이어서 돈다.
+        this._schedule.start(-overdueMs);
+        this._machine.send('dialdown');
+        this._machine.send('dialup');
+        this._armAlarm(-overdueMs);
+        this._syncTitle();
+      } else if (overdueMs <= GRACE_MS) {
+        // grace 이내 — 알람 재생.
+        this._schedule.start(0);
+        this._machine.send('dialdown');
+        this._machine.send('dialup');
+        this._onExpire();
+      } else {
+        // grace 초과 — 알람 없이 배너만. 자동 진행 없음 (spec §4.4).
+        this._showBanner(rec.totalMs, overdueMs);
+      }
+      this._render();
+    }
+  }
+
+  _reconcile() {
+    if (this._machine.state !== 'running') return;
+    const s = this._schedule.settle(this._port.wall());
+    if (s.status === 'ringing' && this.isLeader) {
+      // settle() 은 순수 함수라 실제 상태 전이는 여기서 한다.
+      this._schedule.start(0);
+      this._onExpire();
+    } else if (s.status === 'completed') {
+      this._showBanner(this._totalMs, s.overdueMs);
+      this._schedule.reset();
+      this._machine.send('reset');
+    }
+    this._render();
+  }
+
+  _showBanner(totalMs, overdueMs) {
+    const totalMin = Math.round((totalMs || 0) / 60000);
+    const overdueMin = Math.round(overdueMs / 60000);
+    this._banner.textContent = `${totalMin}분 타이머가 ${overdueMin}분 전에 끝났습니다.`;
+    const restart = el('button', { type: 'button' }, '다시 시작');
+    restart.addEventListener('click', () => {
+      this._banner.hidden = true;
+      this.reset();
+    });
+    this._banner.append(' ', restart);
+    this._banner.hidden = false;
+  }
+
+  // ---- 타이머 동작 -----------------------------------------------------------------
+  _startTimer(minutes) {
+    const totalMs =
+      this._cfg.mode === 'pomodoro' && this._pomodoro
+        ? this._pomodoro.plannedMs
+        : minutes * 60000;
+    this._totalMs = totalMs;
+    if (this._cfg.mode === 'pomodoro' && this._pomodoro) {
+      this._pomodoro.start();
+    } else {
+      this._schedule.start(totalMs);
+    }
+    this._armAlarm(this._schedule.remainingMs);
+    this._syncTitle();
+    this._announce(`${Math.round(totalMs / 60000)}분 타이머 시작`);
+    this._save();
+    this._render();
+  }
+
+  _armAlarm(remainingMs) {
+    if (!this.isLeader) return;
+    this._cancelAlarm();
+    this._alarmCancel = this._audio.scheduleAlarm(remainingMs, this._cfg.volume, this._cfg.alarmLength);
+  }
+
+  _cancelAlarm() {
+    if (this._alarmCancel) {
+      this._alarmCancel();
+      this._alarmCancel = null;
+    }
+    this._audio.cancelAll();
+  }
+
+  _onExpire() {
+    if (!this._machine.send('expire')) return;
+    this._dispatch('ft:ring', {});
+    this._announce(`${Math.round(this._totalMs / 60000)}분 완료`);
+    this._syncTitle();
+    if (this.isLeader && this._cfg.notify && this._notifier.permission === 'granted') {
+      this._notifier.show(`${Math.round(this._totalMs / 60000)}분 완료`, {
+        body: '탭으로 돌아와 확인해주세요.',
+        windowRef: window,
+      });
+    }
+    this._save();
+    this._render();
+  }
+
+  // ---- 공개 API (spec §10) ---------------------------------------------------------
+  setMinutes(n) {
+    this._setMinutesDirect(n);
+  }
+
+  start() {
+    const state = this._machine.state;
+    if (state === 'idle') {
+      if (this._machine.send('start')) this._startTimer(this._selectedMinutes);
+    } else if (state === 'setting') {
+      if (this._machine.send('start')) this._startTimer(this._selectedMinutes);
+    }
+  }
+
+  pause() {
+    if (!this._machine.send('pause')) return;
+    this._schedule.pause();
+    this._cancelAlarm();
+    this._save();
+    this._render();
+  }
+
+  resume() {
+    if (!this._machine.send('resume')) return;
+    this._schedule.resume();
+    this._armAlarm(this._schedule.remainingMs);
+    this._save();
+    this._render();
+  }
+
+  toggle() {
+    const state = this._machine.state;
+    if (state === 'idle' || state === 'setting') this.start();
+    else if (state === 'running') this.pause();
+    else if (state === 'paused') this.resume();
+    else if (state === 'ringing') this.acknowledge();
+  }
+
+  reset() {
+    this._cancelAlarm();
+    this._schedule.reset();
+    this._machine.send('reset');
+    this._selectedMinutes = this._cfg.defaultMinutes;
+    this._totalMs = 0;
+    if (this._cfg.titleSync) releaseTitle(this._instanceId, document);
+    this._save(true);
+    this._render();
+  }
+
+  extend(ms) {
+    if (this._machine.state !== 'running') return;
+    const newRemaining = Math.max(0, this._schedule.remainingMs + ms);
+    this._clock.setRemaining(newRemaining);
+    this._totalMs = Math.max(this._totalMs, newRemaining);
+    if (newRemaining <= 0) {
+      // clock.setRemaining(0) marks the clock expired silently (no 'expire'
+      // event) since it isn't a tick — a -1분 button pressed to exactly 0
+      // must still ring, so trigger it explicitly here.
+      this._onExpire();
+      return;
+    }
+    this._armAlarm(newRemaining);
+    this._save();
+    this._render();
+  }
+
+  skip() {
+    if (this._cfg.mode !== 'pomodoro' || !this._pomodoro) return;
+    this._cancelAlarm();
+    const record = this._pomodoro.skip();
+    this._afterPomodoroAdvance(record);
+  }
+
+  acknowledge() {
+    if (!this._machine.send('acknowledge')) return;
+    this._cancelAlarm();
+    const actualMs = this._totalMs;
+    if (this._cfg.mode === 'pomodoro' && this._pomodoro) {
+      const record = this._pomodoro.complete({ actualMs });
+      this._afterPomodoroAdvance(record);
+    } else {
+      this._dispatch('ft:complete', {
+        plannedMs: this._totalMs,
+        actualMs,
+        skipped: false,
+        overdueMs: 0,
+      });
+      if (this._cfg.titleSync) releaseTitle(this._instanceId, document);
+      this._totalMs = 0;
+      this._save(true);
+    }
+    this._announce('완료');
+    this._render();
+  }
+
+  _afterPomodoroAdvance(record) {
+    this._dispatch('ft:complete', record);
+    this._selectedMinutes = Math.round(this._pomodoro.plannedMs / 60000);
+    if (this._pomodoro.isStarted) {
+      this._machine.send('dialdown');
+      this._machine.send('dialup');
+      this._totalMs = this._pomodoro.plannedMs;
+      this._armAlarm(this._schedule.remainingMs);
+      this._syncTitle();
+    } else {
+      this._totalMs = 0;
+      if (this._cfg.titleSync) releaseTitle(this._instanceId, document);
+    }
+    this._save(true);
+  }
+
+  previewAlarm() {
+    this._audio.previewAlarm(this._cfg.volume);
+  }
+
+  async requestNotifications() {
+    return this._notifier.requestPermission();
+  }
+
+  destroy() {
+    if (this._destroyed) return;
+    this._destroyed = true;
+    this._cancelAlarm();
+    if (this._schedule) this._schedule.reset();
+    if (this._machine) this._machine.send('destroy');
+    for (const off of this._unsubs) off();
+    this._unsubs = [];
+    if (this._lifecycleOff) this._lifecycleOff();
+    if (this._leader) this._leader.release();
+    if (this._cfg && this._cfg.titleSync) releaseTitle(this._instanceId, document);
+    if (this._pointer) this._pointer.detach();
+    if (this._keyboard) this._keyboard.detach();
+    (this._presetDetach || []).forEach((d) => d());
+    (this._deltaDetach || []).forEach((d) => d());
+    if (this._numberDetach) this._numberDetach();
+    if (this._primaryBtn) this._primaryBtn.removeEventListener('click', this._onPrimary);
+    if (this._resetBtn) this._resetBtn.removeEventListener('click', this._onReset);
+    if (this._previewBtn) this._previewBtn.removeEventListener('click', this._onPreview);
+    if (this._dialContainer) resetDial(this._dialContainer);
+    if (this._readoutContainer) resetReadout(this._readoutContainer);
   }
 
   static define(tag = 'focus-timer') {
-    if (!customElements.get(tag)) {
-      customElements.define(tag, FocusTimer);
+    if (!customElements.get(tag)) customElements.define(tag, FocusTimer);
+  }
+
+  // ---- 렌더 --------------------------------------------------------------------------
+  _render() {
+    if (this._destroyed || !this._dialContainer) return;
+    const state = this._machine.state;
+    const idleLike = state === 'idle' || state === 'setting';
+    const remainingMs = this.remainingMs;
+
+    this._dialEl = renderDial(this._dialContainer, {
+      minutes: idleLike ? this._selectedMinutes : Math.round(this._totalMs / 60000) || this._selectedMinutes,
+      maxMinutes: this._cfg.maxMinutes,
+      progress: idleLike ? 1 : this.progress,
+      gauge: this._cfg.gauge,
+      disabled: !idleLike,
+      unit: '분',
+      label: '집중 시간',
+      locale: this._cfg.lang,
+    });
+
+    const showSeconds = !idleLike && remainingMs > 0 && remainingMs <= 60000;
+    const displayMinutes = idleLike
+      ? this._selectedMinutes
+      : showSeconds
+        ? Math.floor(remainingMs / 60000)
+        : Math.max(1, Math.ceil(remainingMs / 60000));
+
+    renderReadout(this._readoutContainer, {
+      minutes: state === 'ringing' ? 0 : displayMinutes,
+      seconds: Math.floor((remainingMs % 60000) / 1000),
+      showSeconds,
+      unit: state === 'ringing' ? '완료' : '분',
+      locale: this._cfg.lang,
+    });
+
+    this._primaryBtn.textContent =
+      state === 'running' ? '일시정지' : state === 'paused' ? '재개' : state === 'ringing' ? '확인' : '시작';
+    this._primaryBtn.disabled = state === 'setting';
+    this._numberInput.value = idleLike ? String(this._selectedMinutes) : '';
+    this._numberInput.disabled = !idleLike;
+    this._presetButtons.forEach((b) => (b.disabled = !idleLike));
+    this._deltaButtons.forEach((b) => (b.disabled = false));
+
+    if (state === 'ringing' && this._cfg.flash) {
+      this._widget.classList.add('is-ringing');
+    } else {
+      this._widget.classList.remove('is-ringing');
     }
+
+    if (this._persistenceNoticeShown && !this._persistenceAnnounced) {
+      this._persistenceAnnounced = true;
+      this._announce('기록이 저장되지 않습니다');
+    }
+  }
+
+  _syncTitle() {
+    if (!this._cfg.titleSync || !this.isLeader) return;
+    if (!claimTitle(this._instanceId, document)) return;
+    const min = Math.max(0, Math.ceil(this._schedule.remainingMs / 60000));
+    const label = this._machine.state === 'ringing' ? '완료!' : `${min}분 남음`;
+    setTitle(this._instanceId, `(${label}) focus-timer`);
+  }
+
+  _announce(text) {
+    if (!this._liveRegion) return;
+    this._liveRegion.textContent = '';
+    // 같은 문구 재통지도 낭독되도록 한 틱 비웠다 채운다.
+    window.setTimeout(() => {
+      if (this._liveRegion) this._liveRegion.textContent = text;
+    }, 30);
+  }
+
+  _dispatch(name, detail) {
+    this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
+  }
+
+  _maybeSave(force) {
+    if (!this._storage || !this.isLeader) return;
+    const now = this._port.wall();
+    if (!force && this._lastSaveWall && now - this._lastSaveWall < 1000) return;
+    this._lastSaveWall = now;
+    this._save();
+  }
+
+  _save(force) {
+    if (!this._storage || !this.isLeader) return;
+    const state = this._machine.state;
+    if (state === 'idle') {
+      this._storage.clear();
+      return;
+    }
+    const record = {
+      state: state === 'setting' ? 'idle' : state === 'ringing' ? 'running' : state,
+      mode: this._cfg.mode,
+      phase: this._pomodoro ? this._pomodoro.phase : 'focus',
+      totalMs: this._totalMs,
+      deadlineWall: this._schedule.status === 'running' ? this._schedule.deadlineWall : null,
+      remainingMs: this._schedule.status === 'paused' ? this._schedule.remainingMs : null,
+      cycleIndex: this._pomodoro ? this._pomodoro.cycleIndex : 0,
+      completedToday: this._completedToday || 0,
+    };
+    this._storage.save(record);
+    if (force) this._lastSaveWall = this._port.wall();
   }
 }
 

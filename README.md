@@ -1,0 +1,112 @@
+# focus-timer
+
+다이얼을 돌려 시간을 정하면 게이지가 줄어들고, 0에서 알람이 울리는 집중 타이머 커스텀 엘리먼트.
+런타임 의존성 0, 외부 네트워크 요청 0건, `<focus-timer>` 태그 하나로 동작한다.
+
+명세: [`docs/spec-v4.md`](docs/spec-v4.md) · 개발 절차: [`focus-timer-dev-plan.md`](focus-timer-dev-plan.md) · 프로젝트 규칙: [`CLAUDE.md`](CLAUDE.md)
+
+## 설치
+
+```bash
+npm install
+npm run build   # dist/focus-timer.js, dist/focus-timer.min.js 생성
+```
+
+```html
+<script src="dist/focus-timer.min.js"></script>
+<focus-timer default-minutes="25"></focus-timer>
+```
+
+빌드 산출물은 런타임 의존성이 0이고 CSS가 인라인(텍스트)으로 포함된 단일 IIFE 번들이다.
+`gzip ≤ 20KB` (실측 약 16.2KB), 오프라인·`file://`·CSP `style-src 'self'` 환경에서 그대로 동작한다.
+
+## 속성
+
+| 속성 | 값 | 기본값 | 설명 |
+|---|---|---|---|
+| `mode` | `simple` \| `pomodoro` | `simple` | 뽀모도로 사이클 레이어 사용 여부 |
+| `gauge` | `sector` \| `segments` | `sector` | 연속 부채꼴 / 60개 분 단위 조각 |
+| `theme` | `auto` \| `classic` \| `purple` \| `pink` \| `sky` \| `dark` | `auto` | `auto` 는 `prefers-color-scheme` 추종 |
+| `max-minutes` | 정수 | `60` | 다이얼 최대값 |
+| `default-minutes` | 정수 | `50` | 최초 선택 분 |
+| `autostart-on-release` | `on` \| `off` | `on` | 드래그를 놓으면 자동 시작할지 |
+| `alarm-length` | `3` \| `30` | `30` | 알람 길이(초), 1초 간격 비프 |
+| `volume` | `0` \| `0.35` \| `0.8` | `0.35` | 알람 음량 3단계 |
+| `flash` | `on` \| `off` | `on` | 알람 시 화면 점멸(`prefers-reduced-motion` 이면 정적 색 채움) |
+| `notify` | `on` \| `off` | `off` | 브라우저 알림 사용(권한은 `requestNotifications()` 로 별도 요청) |
+| `title-sync` | `running` \| `off` | `running` | 실행 중 `document.title` 에 남은 시간 표시 |
+| `persist` | `local` \| `off` | `local` | `localStorage` 저장/복원 |
+| `storage-key` | 문자열 | `focus-timer.v1` | 저장 키/리더 채널 네임스페이스 |
+| `lang` | BCP-47 | `ko` | `Intl.NumberFormat` 로케일 |
+
+## CSS 변수 (테마 API)
+
+`--ft-bg` `--ft-gauge` `--ft-track` `--ft-text` `--ft-mark` `--ft-font` `--ft-radius`
+
+기본 위젯 폭은 `max-width: 360px` — 필요하면 `focus-timer { max-width: 480px; }` 로 오버라이드.
+`::part()` 노출: `dial` `readout` `gauge` `controls`.
+
+## API
+
+```js
+const ft = document.querySelector('focus-timer');
+ft.setMinutes(25); ft.start(); ft.pause(); ft.resume(); ft.toggle();
+ft.reset(); ft.extend(60_000); ft.skip(); ft.acknowledge();
+ft.previewAlarm(); await ft.requestNotifications(); ft.destroy();
+FocusTimer.define('my-timer'); // 다른 태그명으로 재정의
+```
+
+읽기 전용: `state` `mode` `phase` `remainingMs` `totalMs` `progress` `cycleIndex`
+`completedToday` `isLeader` `capabilities`
+
+이벤트(`bubbles:true, composed:true`): `ft:statechange` `ft:tick` `ft:set` `ft:complete`
+`ft:ring` `ft:clockanomaly` `ft:error`
+
+## 아키텍처
+
+```
+core/(순수 로직, DOM 모름) ← ports/(브라우저 API 어댑터) ← view/·input/(DOM) ← index.js(조립)
+```
+
+5개 워크스트림이 파일 단위로 분리되어 병렬 개발되었다(자세한 소유권은 `CLAUDE.md` 참고):
+`core/*`(각도·클럭·상태기계·스케줄), `view/*`(SVG 다이얼·리드아웃·스타일),
+`input/*`(포인터 드래그·키보드), `ports/*`(오디오·스토리지·알림), `runtime/*`+`modes/*`(라이프사이클·
+다중탭 리더·타이틀 소유권·뽀모도로). `src/index.js` 가 이들을 조립한다.
+
+## 브라우저 지원
+
+Chromium/Firefox/Safari 최신 버전. `AudioContext`/`Notification`/`navigator.locks`/
+`BroadcastChannel`/`CSSStyleSheet.replaceSync` 가 없으면 기능이 조용히 축소된다(무음,
+인페이지 배너, 단일 탭 가정 등) — 예외를 던지지 않는다. Notification/Web Locks 는 HTTPS
+필수(localhost 개발은 예외).
+
+## 알려진 한계 (Known limitations)
+
+- **탭을 닫으면 알림/알람이 동작하지 않는다.** 이 탭을 열어둬야 한다.
+- **iOS 무음 스위치가 켜져 있으면 Web Audio 로 소리가 나지 않는다** — 웹에서 우회 불가.
+  iOS 백그라운드에서는 `AudioContext` 가 인터럽트되어 오디오 클럭 예약도 무의미해진다.
+- **iOS Safari(홈 화면 설치 PWA 아님)** 는 `window.Notification` 자체가 없다 —
+  `capabilities.notification === false` 로 감지 가능.
+- **Android Chrome** 은 `new Notification()` 이 던진다 — 자동으로 잡아서 `null` 을 반환하고
+  인페이지 배너로 대체하지만, 데스크톱과 달리 실제 OS 알림은 뜨지 않는다.
+- **다중 탭 실시간 상태 미러링은 v1에 없다.** 리더 선출(Web Locks → localStorage 하트비트 →
+  단일 탭 폴백)과 "리더만 알람·알림·스토리지 쓰기·title 을 담당" 게이팅은 구현되어 있어
+  **알람이 두 번 울리지는 않지만**, 팔로워 탭이 리더의 실시간 잔여 시간을 자동으로 화면에
+  반영하지는 않는다(각 탭은 자신이 로드될 때 저장소를 한 번 읽어 복원할 뿐). 완전한 실시간
+  미러링(BroadcastChannel 로 tick 을 브로드캐스트)은 v1.1 후보.
+- **뽀모도로 모드는 API/로직 레이어만 통합되어 있고, 전용 컨트롤 UI(휴식 건너뛰기 버튼,
+  사이클 표시기 등)는 데모에 없다.** `mode="pomodoro"` 속성과 `skip()` 메서드로 코드 레벨
+  조작은 가능하다.
+- **Wake Lock, 파비콘 진행률, 60분 초과, 5초 정밀 모드, 주간 통계 UI, Document
+  Picture-in-Picture** 는 spec §12 대로 v1.1 이후 범위로 남겨두었다(스키마만 저장, UI 없음).
+- **`global-hotkeys` 는 항상 off** — 위젯 포커스가 없을 때 Space/Enter 로 조작하는 전역
+  단축키는 구현하지 않았다(스펙 §8의 opt-in 요구를 최소로 만족: 아예 없음 = 안전).
+- **`favicon-sync`** 는 spec §7.3 의 이유(교차 출처 오염·CSP·Safari 불안정)로 기본 OFF 이며
+  이번 릴리스에는 켜는 경로 자체를 구현하지 않았다.
+
+## 테스트
+
+```bash
+npm test          # Vitest 단위 테스트 (305개, core/view/input/ports/runtime 전부)
+npm run test:e2e  # Playwright — 아직 시나리오 없음(빈 스위트, VERIFICATION.md 참고)
+```

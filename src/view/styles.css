@@ -1,0 +1,333 @@
+/*
+ * view/styles.css — focus-timer 위젯 스타일.
+ *
+ * 이 파일은 esbuild 의 `.css` → `text` 로더로 문자열로 불러와
+ * view/dial.js 의 `applyStyles(shadowRoot, cssText)` 를 통해 주입된다 (spec §9.2).
+ * 따라서 CSS 모듈/전처리기 문법을 쓰지 않는 순수 CSS 여야 한다.
+ *
+ * 공개 테마 API (spec §9.1) — 이름 변경 금지:
+ *   --ft-bg  --ft-gauge  --ft-track  --ft-text  --ft-mark  --ft-font  --ft-radius
+ */
+
+/* ── 호스트: 사이트 폰트/색 상속이 기본 (spec §9.1) ────────────────── */
+:host {
+  font: inherit;
+  color: inherit;
+  display: block;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:host([hidden]) {
+  display: none;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: inherit;
+}
+
+/* ── 테마 프리셋 (spec §3.1) ───────────────────────────────────────── */
+
+/* auto = prefers-color-scheme 추종 (기본값) */
+:host,
+:host([theme="auto"]),
+.ft-theme-auto {
+  --ft-bg: #faf7f2;
+  --ft-gauge: #1f6f4a;
+  --ft-track: #e3ddd3;
+  --ft-text: #1f1d1a;
+  --ft-mark: #5e5952;
+  --ft-font: inherit;
+  --ft-radius: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :host,
+  :host([theme="auto"]),
+  .ft-theme-auto {
+    --ft-bg: #131316;
+    --ft-gauge: #f5a524;
+    --ft-track: #2c2c31;
+    --ft-text: #f2f2f2;
+    --ft-mark: #9a9aa2;
+  }
+}
+
+:host([theme="classic"]),
+.ft-theme-classic {
+  --ft-bg: #f4ebdc;
+  --ft-gauge: #14562f;
+  --ft-track: #dccdb4;
+  --ft-text: #2e2a24;
+  --ft-mark: #6b5f4c;
+}
+
+:host([theme="purple"]),
+.ft-theme-purple {
+  --ft-bg: #efe6fa;
+  --ft-gauge: #6b2fb5;
+  --ft-track: #dccdee;
+  --ft-text: #2b2140;
+  --ft-mark: #6b5a85;
+}
+
+:host([theme="pink"]),
+.ft-theme-pink {
+  --ft-bg: #fbe7ef;
+  --ft-gauge: #b31e5b;
+  --ft-track: #f0cedb;
+  --ft-text: #3a1d28;
+  --ft-mark: #8a5a6c;
+}
+
+:host([theme="sky"]),
+.ft-theme-sky {
+  --ft-bg: #e4f0fa;
+  --ft-gauge: #0e5c8a;
+  --ft-track: #c6dfef;
+  --ft-text: #16303d;
+  --ft-mark: #4e7186;
+}
+
+:host([theme="dark"]),
+.ft-theme-dark {
+  --ft-bg: #131316;
+  --ft-gauge: #f5a524;
+  --ft-track: #2c2c31;
+  --ft-text: #f2f2f2;
+  --ft-mark: #9a9aa2;
+}
+
+/* ── 레이아웃: 다이얼 위에 리드아웃을 겹친다 ───────────────────────── */
+.ft-widget {
+  position: relative;
+  display: block;
+  container-type: inline-size;
+  font-family: var(--ft-font, inherit);
+  color: var(--ft-text);
+  border-radius: var(--ft-radius);
+  /* 부모가 폭을 제약하지 않는 페이지에 그냥 꽂아도 합리적인 크기가 되도록.
+     호스트 페이지가 --ft-radius 처럼 이 값도 얼마든지 오버라이드할 수 있다. */
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+.ft-dial {
+  position: relative;
+  display: block;
+  width: 100%;
+  /* 터치 타깃 ≥ 44×44 CSS px (spec §8) — 다이얼은 그보다 훨씬 크게 */
+  min-width: 220px;
+  min-height: 220px;
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+  border-radius: 50%;
+  /* touch-action 은 다이얼에만. 위젯 전체에 걸면 페이지 스크롤이 죽는다 (spec §3.2) */
+  touch-action: none;
+  cursor: pointer;
+  outline: none;
+}
+
+.ft-dial[aria-disabled="true"] {
+  cursor: default;
+}
+
+.ft-dial:focus-visible {
+  outline: 3px solid var(--ft-gauge);
+  outline-offset: 3px;
+}
+
+.ft-dial-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── 다이얼 파츠 ───────────────────────────────────────────────────── */
+.ft-face {
+  fill: var(--ft-bg);
+}
+
+.ft-track {
+  stroke: var(--ft-track);
+}
+
+.ft-sector,
+.ft-segment.is-on {
+  fill: var(--ft-gauge);
+}
+
+.ft-segment {
+  fill: var(--ft-track);
+}
+
+.ft-hub {
+  fill: var(--ft-bg);
+}
+
+.ft-tick {
+  stroke: var(--ft-mark);
+  stroke-width: 1;
+  opacity: 0.65;
+}
+
+.ft-tick--major {
+  stroke-width: 2;
+  opacity: 1;
+}
+
+.ft-label {
+  fill: var(--ft-mark);
+  font-family: var(--ft-font, inherit);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 중앙 리드아웃 ─────────────────────────────────────────────────── */
+.ft-readout {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.15em;
+  /* 다이얼 드래그를 가로막지 않는다 */
+  pointer-events: none;
+  color: var(--ft-text);
+  font-family: var(--ft-font, inherit);
+  line-height: 1;
+}
+
+.ft-readout-value {
+  font-size: 2.75rem; /* 컨테이너 쿼리 미지원 폴백 */
+  font-size: clamp(2.25rem, 22cqw, 4rem);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.ft-readout[data-format="ms"] .ft-readout-value {
+  font-size: 2.25rem;
+  font-size: clamp(1.85rem, 17cqw, 3.25rem);
+}
+
+.ft-readout-unit {
+  font-size: 0.9rem;
+  opacity: 0.75;
+}
+
+.ft-readout-unit[hidden] {
+  display: none;
+}
+
+/* ── 스크린리더 전용 상태 안내 영역 (spec §8, aria-live="polite" 1회 안내) ──
+ * 인라인 style 속성을 쓰지 않는다 — style-src 'self' CSP 아래에서 JS로
+ * element.style.* 를 건드리면 그 자체가 위반이 된다(§9.2). 클래스로만 감춘다.
+ */
+.ft-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ── 드래그 중 텍스트 선택 방지 (spec §3.2) — 클래스 토글로, 인라인 style로 하지 않는다 ── */
+.ft-dial.is-dragging,
+.ft-dial.is-dragging * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── 알람 점멸 (spec §5.1 flash) ───────────────────────────────────────── */
+.ft-widget.is-ringing .ft-face {
+  animation: ft-flash 1s step-start infinite;
+}
+
+
+@keyframes ft-flash {
+  0%, 49% {
+    fill: var(--ft-gauge);
+  }
+  50%, 100% {
+    fill: var(--ft-bg);
+  }
+}
+
+/* ── 모션: 기본은 부드럽게, reduce 면 전부 제거 (spec §8, 수용기준 31) ── */
+@media (prefers-reduced-motion: no-preference) {
+  .ft-segment {
+    transition: fill 120ms linear;
+  }
+
+  .ft-sector {
+    transition: fill 120ms linear;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ft-segment,
+  .ft-sector,
+  .ft-readout-value {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .ft-widget.is-ringing .ft-face {
+    animation: none;
+    fill: var(--ft-gauge);
+  }
+}
+
+/* ── 강제 색상 모드 (spec §8, §3.1) ────────────────────────────────────
+ * forced-colors 에서는 fill/stroke 가 시스템 색으로 덮여 잔량 구분이 사라진다.
+ * → 색이 아니라 '두께 + 외곽선 패턴' 으로 구분되게 한다.
+ */
+@media (forced-colors: active) {
+  .ft-face,
+  .ft-hub {
+    fill: Canvas;
+  }
+
+  .ft-track {
+    stroke: GrayText;
+    stroke-width: 8;
+  }
+
+  .ft-sector,
+  .ft-segment.is-on {
+    fill: Highlight;
+    stroke: CanvasText;
+    stroke-width: 2;
+    stroke-dasharray: 3 2;
+  }
+
+  .ft-segment:not(.is-on) {
+    fill: Canvas;
+    stroke: GrayText;
+    stroke-width: 0.5;
+    stroke-dasharray: none;
+  }
+
+  .ft-tick,
+  .ft-tick--major {
+    stroke: CanvasText;
+    opacity: 1;
+  }
+
+  .ft-label,
+  .ft-readout {
+    fill: CanvasText;
+    color: CanvasText;
+  }
+
+  .ft-dial:focus-visible {
+    outline: 3px solid CanvasText;
+  }
+}

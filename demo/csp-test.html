@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!--
+    spec §9.2 검증용: style-src 'self' 아래에서 JS로 만든 <style> 인라인은
+    막히지만, adoptedStyleSheets 경로(view/dial.js applyStyles())는 CSP의
+    style-src 검사를 받지 않으므로 위젯이 정상 렌더되어야 한다.
+    script-src 'self' 도 함께 걸어 외부 스크립트/인라인 스크립트 위반이
+    없는지도 같이 확인한다.
+  -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self'; connect-src 'none'" />
+  <title>focus-timer CSP test</title>
+</head>
+<body>
+  <h1>CSP: style-src 'self'; script-src 'self'</h1>
+  <p id="result">확인 중…</p>
+  <focus-timer default-minutes="10" persist="off" title-sync="off"></focus-timer>
+  <script src="../dist/focus-timer.js"></script>
+  <script src="csp-test.js"></script>
+</body>
+</html>
