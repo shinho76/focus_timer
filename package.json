@@ -1,0 +1,21 @@
+{
+  "name": "focus-timer",
+  "version": "0.1.0",
+  "description": "Dial-based focus timer custom element. Zero runtime dependencies.",
+  "type": "module",
+  "main": "dist/focus-timer.min.js",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "vitest": "^2.1.0",
+    "jsdom": "^25.0.0",
+    "http-server": "^14.1.1",
+    "@playwright/test": "^1.48.0"
+  }
+}
