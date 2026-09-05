@@ -43,19 +43,23 @@ npm run build   # dist/focus-timer.js, dist/focus-timer.min.js 생성
 
 `--ft-bg` `--ft-gauge` `--ft-track` `--ft-text` `--ft-mark` `--ft-font` `--ft-radius`
 `--ft-chassis-bg` `--ft-chassis-fg` — 다이얼 판을 감싸는 "기기 베젤"의 배경/글자색. 6개 테마 어디서도
-재정의하지 않으므로 테마와 무관하게 항상 어둡다(기본 `#0b0b0e`/`#e8e8ea`). 밝은 배경을 원하면
-`focus-timer { --ft-chassis-bg: #fff; --ft-chassis-fg: #111; }` 처럼 오버라이드.
+재정의하지 않으므로 테마와 무관하게 항상 어둡다(기본 `#1c1c22`/`#e8e8ea`, 짙은 차콜톤). 밝은 배경을
+원하면 `focus-timer { --ft-chassis-bg: #fff; --ft-chassis-fg: #111; }` 처럼 오버라이드.
 
 ## 위젯 안의 옵션 컨트롤
 
-`<focus-timer>` 하단에는 항상 두 그룹의 컨트롤이 함께 붙는다 — HTML 속성으로만 정적으로 고르던
-`theme`/`gauge` 를 실행 중에도 클릭 한 번으로 바꿀 수 있다:
+`<focus-timer>` 하단에는 항상 세 그룹의 **세그먼트 버튼**(선택지를 이어붙인 버튼 묶음, 한 번에
+정확히 하나만 눌린 상태가 되는 UI)이 붙는다 — HTML 속성으로만 정적으로 고르던 시간/`theme`/`gauge`
+를 실행 중에도 클릭 한 번으로 바꿀 수 있다:
 
-- **테마 스와치 6개**: `auto`/`classic`/`purple`/`pink`/`sky`/`dark` 를 색상 원형 버튼으로 전환.
-- **게이지 스타일 토글 1개**: "세그먼트"(60개 분 단위 조각) ↔ "파이 차트"(연속 부채꼴, `gauge="sector"`)
-  전환. 6 × 2 = 12가지 조합 전부에 이 두 컨트롤만으로 도달할 수 있다.
+- **프리셋 시간 9개**: 5·10·15·20·25·30·40·50·60분.
+- **테마 세그먼트 6개**: `auto`/`classic`/`purple`/`pink`/`sky`/`dark`. 각 세그먼트 아래에 그 테마의
+  강조색을 얇게 깔아 색 정체성을 유지한다.
+- **게이지 스타일 세그먼트 2개**: "세그먼트"(60개 분 단위 조각) / "파이 차트"(연속 부채꼴,
+  `gauge="sector"`). 테마 6개 × 게이지 2개 = 12가지 조합 전부에 이 두 그룹만으로 도달할 수 있다.
 
-둘 다 다이얼의 "값"이 아니라 순전히 겉모습이라 타이머가 실행 중이어도 언제든 바꿀 수 있다.
+셋 다 다이얼의 "값"이 아니라 시간 설정이거나 순전히 겉모습이라 실행 중에도 언제든 바꿀 수 있다
+(프리셋은 idle/setting 에서만 의미가 있어 running 중엔 비활성화된다).
 
 기본 위젯 폭은 `max-width: 360px` — 필요하면 `focus-timer { max-width: 480px; }` 로 오버라이드.
 `::part()` 노출: `dial` `readout` `gauge` `controls`.

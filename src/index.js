@@ -47,6 +47,12 @@ const THEMES = [
   { id: 'dark', label: '다크' },
 ];
 
+/** 게이지 스타일 2종 — segments(60분할 세그먼트) / sector(연속 부채꼴="파이 차트"). */
+const GAUGE_STYLES = [
+  { id: 'segments', label: '세그먼트' },
+  { id: 'sector', label: '파이 차트' },
+];
+
 /** Real browser time port. `Date.now`/`performance.now` live ONLY here. */
 function realPort() {
   return {
@@ -265,10 +271,19 @@ class FocusTimer extends HTMLElement {
     widget.append(this._banner);
 
     const controls = el('div', { class: 'ft-controls', part: 'controls' });
+
+    // 프리셋은 5~60분 9종을 세그먼트 버튼(한 줄로 이어붙인 버튼 묶음)으로 —
+    // 개별 알약 버튼이 아니라 "여러 선택지 중 하나"라는 게 한눈에 보이도록.
+    const presetGroup = el('div', {
+      class: 'ft-segmented',
+      role: 'group',
+      'aria-label': '프리셋 시간(분)',
+    });
     this._presetButtons = PRESET_MINUTES.map((m) =>
-      el('button', { type: 'button', 'data-minutes': String(m) }, String(m)),
+      el('button', { type: 'button', class: 'ft-segmented__item', 'data-minutes': String(m) }, String(m)),
     );
-    this._presetButtons.forEach((b) => controls.append(b));
+    this._presetButtons.forEach((b) => presetGroup.append(b));
+    controls.append(presetGroup);
 
     this._deltaButtons = DELTA_STEPS.map((d) =>
       el('button', { type: 'button', 'data-delta': String(d) }, d > 0 ? `+${d}` : String(d)),
@@ -300,37 +315,48 @@ class FocusTimer extends HTMLElement {
   }
 
   /**
-   * 디자인 개편(③④): 6개 테마 × 2개 게이지 = 12조합 전부에 실시간으로
-   * 닿을 수 있는 컨트롤. 12개를 낱개 버튼으로 늘어놓는 대신 "색"(테마
-   * 스와치 6개)과 "모양"(게이지 토글 1개)을 분리했다 — 서로 직교하는
-   * 두 축을 하나의 목록으로 합치면 선택지가 늘어날수록 버튼 수가 배로
-   * 커지고, 지금 무엇이 선택됐는지도 한눈에 안 들어온다.
+   * 디자인 개편(③④, 2차 개정): 6개 테마 × 2개 게이지 = 12조합 전부에 실시간으로
+   * 닿을 수 있는 컨트롤. 두 축(색/모양)을 분리해서 선택지를 늘어놓되, 프리셋
+   * 버튼과 시각적으로 통일되도록 전부 같은 "세그먼트 버튼" 컴포넌트
+   * (`.ft-segmented`)를 쓴다 — 원형 스와치였던 이전 버전 대신 라벨이 보이는
+   * 사각 세그먼트로 바꿔 테마 이름도 함께 읽을 수 있게 했다. 각 세그먼트
+   * 아래쪽에 그 테마의 강조색을 얇게 깔아 색 정체성은 그대로 유지한다.
    * @returns {HTMLElement}
    */
   _buildOptions() {
     const options = el('div', { class: 'ft-options', part: 'options' });
 
     const themeRow = el('div', { class: 'ft-option-row' }, el('span', { class: 'ft-option-label' }, '테마'));
+    const themeGroup = el('div', { class: 'ft-segmented', role: 'group', 'aria-label': '테마' });
     this._themeButtons = THEMES.map(({ id, label }) => {
-      const btn = el('button', {
-        type: 'button',
-        class: `ft-swatch ft-swatch--${id}`,
-        'data-theme': id,
-        'aria-label': `${label} 테마`,
-        'aria-pressed': 'false',
-      });
-      themeRow.append(btn);
+      const btn = el(
+        'button',
+        {
+          type: 'button',
+          class: `ft-segmented__item ft-segmented__item--swatch ft-swatch--${id}`,
+          'data-theme': id,
+          'aria-pressed': 'false',
+        },
+        label,
+      );
+      themeGroup.append(btn);
       return btn;
     });
+    themeRow.append(themeGroup);
     options.append(themeRow);
 
-    const gaugeRow = el(
-      'div',
-      { class: 'ft-option-row' },
-      el('span', { class: 'ft-option-label' }, '게이지'),
-    );
-    this._gaugeToggleBtn = el('button', { type: 'button', class: 'ft-gauge-toggle' });
-    gaugeRow.append(this._gaugeToggleBtn);
+    const gaugeRow = el('div', { class: 'ft-option-row' }, el('span', { class: 'ft-option-label' }, '게이지'));
+    const gaugeGroup = el('div', { class: 'ft-segmented', role: 'group', 'aria-label': '게이지 스타일' });
+    this._gaugeButtons = GAUGE_STYLES.map(({ id, label }) => {
+      const btn = el(
+        'button',
+        { type: 'button', class: 'ft-segmented__item', 'data-gauge': id, 'aria-pressed': 'false' },
+        label,
+      );
+      gaugeGroup.append(btn);
+      return btn;
+    });
+    gaugeRow.append(gaugeGroup);
     options.append(gaugeRow);
 
     return options;
@@ -424,15 +450,14 @@ class FocusTimer extends HTMLElement {
    */
   _wireOptions() {
     this._onThemeClick = (e) => {
-      const btn = e.currentTarget;
-      this.setAttribute('theme', btn.dataset.theme);
+      this.setAttribute('theme', e.currentTarget.dataset.theme);
     };
     this._themeButtons.forEach((b) => b.addEventListener('click', this._onThemeClick));
 
-    this._onGaugeToggle = () => {
-      this.setAttribute('gauge', this._cfg.gauge === 'segments' ? 'sector' : 'segments');
+    this._onGaugeClick = (e) => {
+      this.setAttribute('gauge', e.currentTarget.dataset.gauge);
     };
-    this._gaugeToggleBtn.addEventListener('click', this._onGaugeToggle);
+    this._gaugeButtons.forEach((b) => b.addEventListener('click', this._onGaugeClick));
   }
 
   /**
@@ -838,7 +863,7 @@ class FocusTimer extends HTMLElement {
     if (this._resetBtn) this._resetBtn.removeEventListener('click', this._onReset);
     if (this._previewBtn) this._previewBtn.removeEventListener('click', this._onPreview);
     (this._themeButtons || []).forEach((b) => b.removeEventListener('click', this._onThemeClick));
-    if (this._gaugeToggleBtn) this._gaugeToggleBtn.removeEventListener('click', this._onGaugeToggle);
+    (this._gaugeButtons || []).forEach((b) => b.removeEventListener('click', this._onGaugeClick));
     if (this._dialContainer) resetDial(this._dialContainer);
     if (this._readoutContainer) resetReadout(this._readoutContainer);
   }
@@ -901,16 +926,26 @@ class FocusTimer extends HTMLElement {
     this._renderOptions();
   }
 
-  /** 테마 스와치의 선택 표시 + 게이지 토글 버튼의 현재 상태 라벨을 갱신한다. */
+  /** 프리셋/테마/게이지 세그먼트 버튼 중 현재 선택된 것을 표시한다. */
   _renderOptions() {
     if (!this._themeButtons) return;
+    const idleLike = this._machine.state === 'idle' || this._machine.state === 'setting';
+
     const currentTheme = this.getAttribute('theme') || 'auto';
     this._themeButtons.forEach((btn) => {
       btn.setAttribute('aria-pressed', String(btn.dataset.theme === currentTheme));
     });
-    const isPie = this._cfg.gauge === 'sector';
-    this._gaugeToggleBtn.textContent = isPie ? '게이지: 파이 차트' : '게이지: 세그먼트';
-    this._gaugeToggleBtn.setAttribute('aria-pressed', String(isPie));
+
+    this._gaugeButtons.forEach((btn) => {
+      btn.setAttribute('aria-pressed', String(btn.dataset.gauge === this._cfg.gauge));
+    });
+
+    // 프리셋도 세그먼트 버튼 묶음이 됐으니, 지금 설정과 값이 같은 프리셋을
+    // 눌린 상태로 보여준다(idle/setting 에서만 — running 중엔 의미 없음).
+    this._presetButtons.forEach((btn) => {
+      const matches = idleLike && Number(btn.dataset.minutes) === this._selectedMinutes;
+      btn.setAttribute('aria-pressed', String(matches));
+    });
   }
 
   _syncTitle() {

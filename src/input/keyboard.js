@@ -27,8 +27,8 @@
  * @property {(v: boolean|null) => void} setDisabled
  */
 
-/** 프리셋 버튼 값 (spec §2.3 / §3.3). */
-export const PRESET_MINUTES = Object.freeze([5, 10, 25, 50]);
+/** 프리셋 버튼 값 (spec §2.3 / §3.3 — v1 디자인 개정으로 9개로 확장, docs/spec-v4.md 각주 참고). */
+export const PRESET_MINUTES = Object.freeze([5, 10, 15, 20, 25, 30, 40, 50, 60]);
 
 /** ± 버튼 스텝 (spec §2.3 / §3.3). */
 export const DELTA_STEPS = Object.freeze([-5, -1, 1, 5]);

@@ -48,9 +48,11 @@
      검정 계통으로 고정한다(디자인 요청) — 6개 테마 블록 어디에도 이 변수를
      다시 정의하지 않으므로 테마와 무관하게 늘 같은 값이다. 호스트가 원하면
      `focus-timer { --ft-chassis-bg: ...; }` 로 오버라이드할 수 있다. */
-  --ft-chassis-bg: #0b0b0e;
+  /* v1 2차 디자인 개정: 처음엔 거의 검정(#0b0b0e)이었으나 "약간 옅은 색"
+     요청으로 한 단계 밝은 차콜톤으로 조정했다. */
+  --ft-chassis-bg: #1c1c22;
   --ft-chassis-fg: #e8e8ea;
-  --ft-chassis-border: rgba(255, 255, 255, 0.06);
+  --ft-chassis-border: rgba(255, 255, 255, 0.08);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -337,8 +339,7 @@
 .ft-options {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 10px;
+  gap: 12px;
   margin-top: 18px;
   padding-top: 16px;
   border-top: 1px solid var(--ft-chassis-border);
@@ -346,8 +347,8 @@
 
 .ft-option-row {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .ft-option-label {
@@ -355,63 +356,70 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ft-chassis-fg, #e8e8ea);
-  opacity: 0.5;
-  min-width: 3.5em;
+  opacity: 0.55;
 }
 
-.ft-swatch {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  padding: 0;
-  border: 2px solid transparent;
-  cursor: pointer;
-  background: var(--swatch-bg);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
-  transition: transform 120ms ease, border-color 120ms ease;
+/* ── 세그먼트 버튼 (여러 선택지 중 하나) ─────────────────────────────────
+ * 프리셋 시간·테마·게이지 스타일 셋 다 이 컴포넌트 하나로 통일한다 — 세
+ * 컨트롤이 "여러 선택지 중 정확히 하나를 고른다"는 같은 상호작용이라는
+ * 것을 시각적으로도 같게 보여주기 위해서다(디자인 요청).
+ */
+.ft-segmented {
+  display: flex;
+  flex-wrap: wrap;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  overflow: hidden;
 }
 
-.ft-swatch:hover {
-  transform: scale(1.12);
-}
-
-.ft-swatch:focus-visible {
-  outline: 2px solid var(--ft-chassis-fg, #e8e8ea);
-  outline-offset: 2px;
-}
-
-.ft-swatch[aria-pressed="true"] {
-  border-color: var(--ft-chassis-fg, #e8e8ea);
-}
-
-.ft-gauge-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.ft-segmented__item {
+  flex: 1 1 auto;
   font: inherit;
   font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
   color: var(--ft-chassis-fg, #e8e8ea);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
-  padding: 6px 14px;
+  background: transparent;
+  border: none;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px 10px;
+  min-height: 34px;
   cursor: pointer;
-  transition: background 120ms ease;
+  transition: background 120ms ease, color 120ms ease;
 }
 
-.ft-gauge-toggle:hover {
-  background: rgba(255, 255, 255, 0.12);
+.ft-segmented__item:last-child {
+  border-right: none;
 }
 
-.ft-gauge-toggle:focus-visible {
+.ft-segmented__item:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ft-segmented__item:focus-visible {
   outline: 2px solid var(--ft-gauge);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 
-.ft-gauge-toggle-icon {
-  width: 14px;
-  height: 14px;
-  flex: none;
+.ft-segmented__item:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.ft-segmented__item[aria-pressed="true"] {
+  background: var(--ft-gauge);
+  color: #0b0b0e;
+  font-weight: 600;
+}
+
+/* 테마 세그먼트는 라벨 아래에 그 테마의 강조색을 얇게 깔아 색 정체성을
+   유지한다 — 선택되지 않은 상태에서도 어떤 색인지 미리 보인다. */
+.ft-segmented__item--swatch {
+  box-shadow: inset 0 -3px 0 var(--swatch-bg);
+}
+
+.ft-segmented__item--swatch[aria-pressed="true"] {
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.25);
 }
 
 /* ── 스크린리더 전용 상태 안내 영역 (spec §8, aria-live="polite" 1회 안내) ──

@@ -171,8 +171,9 @@ test.describe('키보드만으로 조작 (기준 30)', () => {
     // tabindex="-1"). 정지/재개는 별도의 항상-포커스 가능한 컨트롤(주 버튼)로
     // 한다 — 이것도 마우스가 아니라 포커스 이동 + Enter 라는 점에서 "키보드만"
     // 요건(기준 30)을 그대로 만족한다.
-    // 데모 페이지의 여러 인스턴스 중 메인(첫 번째)으로 스코프한다.
-    const primaryButton = page.locator('focus-timer').first().locator('.ft-controls button').nth(8); // 프리셋4+델타4 다음
+    // 데모 페이지의 여러 인스턴스 중 메인(첫 번째)으로 스코프한다. 인덱스가
+    // 아니라 part 속성으로 찾는다 — 프리셋 버튼 개수가 늘어나도(9개) 깨지지 않는다.
+    const primaryButton = page.locator('focus-timer').first().locator('[part="pause-button"]');
     await primaryButton.focus();
     await page.keyboard.press('Enter'); // toggle → pause
     const paused = await page.evaluate(() => document.querySelector('focus-timer').state);
