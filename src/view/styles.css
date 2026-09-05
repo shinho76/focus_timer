@@ -163,8 +163,10 @@
   color: var(--ft-text);
   border-radius: calc(var(--ft-radius) * 1.5);
   /* 부모가 폭을 제약하지 않는 페이지에 그냥 꽂아도 합리적인 크기가 되도록.
-     호스트 페이지가 --ft-radius 처럼 이 값도 얼마든지 오버라이드할 수 있다. */
-  max-width: 360px;
+     호스트 페이지가 --ft-radius 처럼 이 값도 얼마든지 오버라이드할 수 있다.
+     v1.2 화면 단순화: 다이얼을 명백한 시각적 주인공으로 키우려고 360→400px
+     로 늘렸다(디자인 종합의견 — "다이얼을 화면의 명백한 시각적 중심으로"). */
+  max-width: 400px;
   margin: 0 auto;
   /* "기기 베젤" — 다이얼 판(테마색) 바깥은 항상 어둡게 (디자인 요청).
      참고 이미지의 디지털 타이머처럼 어두운 케이스 안에 다이얼이 얹힌 모양. */
@@ -174,9 +176,17 @@
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 12px 28px rgba(0, 0, 0, 0.35);
 }
 
-/* ── 상단 상태바: 날짜(좌) / 현재 시각(우) ────────────────────────────────
- * 디자인 요청 — 다이얼과는 별개로, 실제 벽시계를 보여주는 순수 정보 영역.
+/* ── 하단 부가 정보: 날짜/시각 + 명언 (v1.2 화면 단순화) ─────────────────────
+ * 핵심 과업(다이얼)보다 우선순위가 낮은 정보라 위젯 맨 아래로 옮기고, 위
+ * 컨트롤 영역과 구분선으로 나눴다(디자인 종합의견 — "부가 기능을 다이얼보다
+ * 아래로"). 원래대로 옅은 톤은 유지한다.
  */
+.ft-secondary {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ft-chassis-border);
+}
+
 .ft-status {
   display: flex;
   justify-content: space-between;
@@ -192,7 +202,7 @@
 /* ── 명언 로테이터 (1분마다 교체, 디자인 요청) ───────────────────────────── */
 .ft-quote {
   text-align: center;
-  margin: 0 0 14px;
+  margin: 0;
   padding: 0 8px;
   min-height: 2.6em;
 }
@@ -213,18 +223,11 @@
   opacity: 0.5;
 }
 
-/* ── 목표 영역: 다이얼 위 목표 텍스트 + 입력용 플로팅 버튼 (디자인 요청) ── */
-.ft-goal {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-bottom: 14px;
-  min-height: 32px;
-}
-
+/* ── 목표 텍스트: 다이얼 위(디자인 요청, 히어로 영역의 일부) — 설정돼 있을
+ * 때만 보인다. 입력 UI(인풋+버튼)는 저빈도 진입점이라 하단 유틸리티 바로
+ * 옮겼다(v1.2 화면 단순화, `.ft-utility-row` 참고). */
 .ft-goal-text {
-  margin: 0;
+  margin: 0 0 14px;
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--ft-gauge);
@@ -249,7 +252,18 @@
   outline-offset: 1px;
 }
 
-.ft-goal-fab {
+/* ── 유틸리티 바: 목표(+) / 설정(톱니) — 상시 노출은 아이콘 두 개뿐이고,
+ * 그 뒤의 패널(입력창, 설정 패널)은 토글해야 보인다(디자인 종합의견 —
+ * "저빈도 기능은 아이콘 하나 뒤로"). */
+.ft-utility-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.ft-fab {
   flex: none;
   display: flex;
   align-items: center;
@@ -265,17 +279,17 @@
   transition: transform 120ms ease, filter 120ms ease;
 }
 
-.ft-goal-fab:hover {
+.ft-fab:hover {
   filter: brightness(1.08);
   transform: scale(1.06);
 }
 
-.ft-goal-fab:focus-visible {
+.ft-fab:focus-visible {
   outline: 2px solid var(--ft-chassis-fg, #e8e8ea);
   outline-offset: 2px;
 }
 
-.ft-goal-fab-icon {
+.ft-fab-icon {
   width: 16px;
   height: 16px;
 }
@@ -288,9 +302,11 @@
   position: relative;
   display: block;
   width: 100%;
-  /* 터치 타깃 ≥ 44×44 CSS px (spec §8) — 다이얼은 그보다 훨씬 크게 */
-  min-width: 220px;
-  min-height: 220px;
+  /* 터치 타깃 ≥ 44×44 CSS px (spec §8) — 다이얼은 그보다 훨씬 크게.
+     v1.2 화면 단순화: 220→260 으로 키워 다이얼을 화면의 명백한 시각적
+     중심으로 만들었다(디자인 종합의견). */
+  min-width: 260px;
+  min-height: 260px;
   aspect-ratio: 1 / 1;
   margin: 0 auto;
   border-radius: 50%;
@@ -460,6 +476,62 @@
   filter: brightness(1.08);
 }
 
+/* 설정 패널 안의 버튼 줄은 `.ft-controls` 스타일을 그대로 재사용하되, 패널
+ * 자체가 이미 유틸리티 바 아래 간격을 두므로 이중 여백만 지운다. */
+.ft-controls--tight {
+  margin-top: 0;
+}
+
+/* ── "미세 조정" 펼침 토글 + 패널 (v1.2 화면 단순화) ─────────────────────────
+ * ±버튼·숫자입력은 프리셋만으로 부족할 때만 쓰는 미세 조정이라 상시 노출하지
+ * 않는다(디자인 종합의견). 토글 자체는 `.ft-controls button` 스타일을 그대로
+ * 쓰고, 안의 아이콘+정렬만 보탠다.
+ */
+.ft-finetune-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ft-chevron-icon {
+  width: 12px;
+  height: 12px;
+  transition: transform 150ms ease;
+}
+
+.ft-finetune-toggle[aria-expanded="true"] .ft-chevron-icon {
+  transform: rotate(180deg);
+}
+
+.ft-finetune {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.ft-finetune[hidden] {
+  display: none;
+}
+
+/* ── 설정 패널 (테마/게이지/리셋/알람 미리듣기) — 톱니 아이콘 뒤로 숨긴다
+ * (디자인 종합의견: "저빈도 기능은 설정 아이콘 하나 뒤로"). */
+.ft-settings-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ft-chassis-border);
+}
+
+.ft-settings-panel[hidden] {
+  display: none;
+}
+
 /* ── 테마 색상 세그먼트 + 게이지 스타일 아이콘 세그먼트 (디자인 요청 ③④) ──
  * 12개(테마 6 × 게이지 2) 낱개 버튼 대신, "색"과 "모양"을 각각 하나의
  * 컨트롤로 분리했다. 텍스트 라벨은 쓰지 않는다 — 테마는 버튼 자체의 색이,
@@ -469,9 +541,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-top: 18px;
-  padding-top: 16px;
-  border-top: 1px solid var(--ft-chassis-border);
+  width: 100%;
 }
 
 .ft-option-row {

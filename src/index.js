@@ -153,13 +153,61 @@ function buildGaugeIcon(kind) {
 /** 목표 입력 플로팅 버튼용 "+" 아이콘. 목표가 이미 있으면 CSS 로 회전시켜 "×"(닫기)처럼 보이게 한다. */
 function buildPlusIcon() {
   const svg = svgEl('svg', {
-    class: 'ft-goal-fab-icon',
+    class: 'ft-fab-icon',
     viewBox: '0 0 20 20',
     'aria-hidden': 'true',
     focusable: 'false',
   });
   svg.append(svgEl('line', { x1: 10, y1: 3, x2: 10, y2: 17, stroke: 'currentColor', 'stroke-width': 2.4, 'stroke-linecap': 'round' }));
   svg.append(svgEl('line', { x1: 3, y1: 10, x2: 17, y2: 10, stroke: 'currentColor', 'stroke-width': 2.4, 'stroke-linecap': 'round' }));
+  return svg;
+}
+
+/** 설정(테마/게이지/리셋/알람 미리듣기) 토글용 톱니 아이콘 — 저빈도 기능을 한데 묶어
+ * 아이콘 하나 뒤로 숨긴다(디자인 종합의견 반영: 상시 노출 컨트롤 수 축소). */
+function buildGearIcon() {
+  const svg = svgEl('svg', {
+    class: 'ft-fab-icon',
+    viewBox: '0 0 20 20',
+    'aria-hidden': 'true',
+    focusable: 'false',
+  });
+  svg.append(svgEl('circle', { cx: 10, cy: 10, r: 3.2, fill: 'none', stroke: 'currentColor', 'stroke-width': 2 }));
+  for (let deg = 0; deg < 360; deg += 60) {
+    const rad = (deg * Math.PI) / 180;
+    svg.append(
+      svgEl('line', {
+        x1: 10 + Math.cos(rad) * 5.4,
+        y1: 10 + Math.sin(rad) * 5.4,
+        x2: 10 + Math.cos(rad) * 8,
+        y2: 10 + Math.sin(rad) * 8,
+        stroke: 'currentColor',
+        'stroke-width': 2,
+        'stroke-linecap': 'round',
+      }),
+    );
+  }
+  return svg;
+}
+
+/** "미세 조정" 펼침 토글용 쉐브론 아이콘 — aria-expanded 에 따라 CSS 로 뒤집는다. */
+function buildChevronIcon() {
+  const svg = svgEl('svg', {
+    class: 'ft-chevron-icon',
+    viewBox: '0 0 20 20',
+    'aria-hidden': 'true',
+    focusable: 'false',
+  });
+  svg.append(
+    svgEl('polyline', {
+      points: '5,7.5 10,12.5 15,7.5',
+      fill: 'none',
+      stroke: 'currentColor',
+      'stroke-width': 2,
+      'stroke-linecap': 'round',
+      'stroke-linejoin': 'round',
+    }),
+  );
   return svg;
 }
 
@@ -338,50 +386,28 @@ class FocusTimer extends HTMLElement {
   }
 
   // ---- shadow DOM --------------------------------------------------------------
+  /**
+   * 화면 단순화(디자인 종합의견 반영, v1.2): "항상 전부 노출" 대신 우선순위를
+   * 나눴다 — ①다이얼(히어로, 확대) ②프리셋+시작(1티어 상시 노출) ③미세조정(±,
+   * 숫자입력 — 토글로 접힘) ④목표 입력 + 설정(테마/게이지/리셋/미리듣기 — 저빈도라
+   * 아이콘 뒤로 숨김) ⑤날짜/시각/명언(부가 정보 — 맨 아래, 옅은 톤). 기존 기능은
+   * 하나도 빼지 않고 노출 우선순위만 재배치했다.
+   */
   _buildShadow() {
     applyStyles(this.shadowRoot, CSS_TEXT);
 
     const widget = el('div', { class: 'ft-widget', part: 'controls' });
 
-    // 상단 상태바: 왼쪽 오늘 날짜, 오른쪽 현재 시각(24시간, 분까지) — 디자인 요청.
-    const statusBar = el('div', { class: 'ft-status' });
-    this._dateEl = el('span', { class: 'ft-status-date' });
-    this._clockEl = el('span', { class: 'ft-status-clock' });
-    statusBar.append(this._dateEl, this._clockEl);
-    widget.append(statusBar);
-
-    // 명언 로테이터: 1분마다 시간의 중요함을 알려주는 문구를 순환 표시 — 디자인 요청.
-    this._quoteBlock = el('div', { class: 'ft-quote' });
-    this._quoteTextEl = el('p', { class: 'ft-quote-text' });
-    this._quoteAuthorEl = el('p', { class: 'ft-quote-author' });
-    this._quoteBlock.append(this._quoteTextEl, this._quoteAuthorEl);
-    widget.append(this._quoteBlock);
-
-    // 목표 영역: 다이얼(시간) 위에 오늘의 목표를 한 줄 띄운다 + 아래쪽에 입력용
-    // 플로팅 버튼 — 디자인 요청. 목표가 없으면 텍스트는 비워두고 버튼만 보인다.
-    const goalRow = el('div', { class: 'ft-goal' });
+    // 목표 텍스트 — 다이얼(시간) 바로 위, 설정돼 있을 때만 보인다. 히어로
+    // 영역의 일부로 취급해 최상단에 둔다(입력 UI는 하단 유틸리티 바로 이동).
     this._goalTextEl = el('p', { class: 'ft-goal-text', hidden: '' });
-    this._goalFab = el(
-      'button',
-      { type: 'button', class: 'ft-goal-fab', 'aria-label': '오늘의 목표 설정' },
-      buildPlusIcon(),
-    );
-    this._goalInput = el('input', {
-      type: 'text',
-      class: 'ft-goal-input',
-      maxlength: '60',
-      placeholder: '오늘의 목표를 한 가지만 적어보세요',
-      hidden: '',
-      'aria-label': '오늘의 목표 입력',
-    });
-    goalRow.append(this._goalTextEl, this._goalInput, this._goalFab);
-    widget.append(goalRow);
+    widget.append(this._goalTextEl);
 
     // 다이얼과 리드아웃을 별도의 위치기준 상자(.ft-stage)로 묶는다 — 리드아웃의
     // `position:absolute; inset:0` 은 이 상자를 기준으로 삼아야 다이얼 위에
     // 정확히 겹친다. 위젯(.ft-widget) 자체를 기준으로 삼으면 그 아래 컨트롤/
     // 옵션 영역까지 포함한 전체 높이의 중앙에 텍스트가 떠서, 컨트롤이 늘어날
-    // 때마다(이번 옵션 버튼 추가처럼) 다이얼과 어긋난다.
+    // 때마다 다이얼과 어긋난다.
     const stage = el('div', { class: 'ft-stage' });
     this._dialContainer = el('div');
     stage.append(this._dialContainer);
@@ -401,7 +427,7 @@ class FocusTimer extends HTMLElement {
 
     const controls = el('div', { class: 'ft-controls', part: 'controls' });
 
-    // 프리셋은 5~60분 9종을 세그먼트 버튼(한 줄로 이어붙인 버튼 묶음)으로 —
+    // 프리셋은 5~60분 7종을 세그먼트 버튼(한 줄로 이어붙인 버튼 묶음)으로 —
     // 개별 알약 버튼이 아니라 "여러 선택지 중 하나"라는 게 한눈에 보이도록.
     const presetGroup = el('div', {
       class: 'ft-segmented',
@@ -414,10 +440,30 @@ class FocusTimer extends HTMLElement {
     this._presetButtons.forEach((b) => presetGroup.append(b));
     controls.append(presetGroup);
 
+    this._primaryBtn = el('button', { type: 'button', part: 'pause-button' }, '시작');
+    controls.append(this._primaryBtn);
+
+    // "미세 조정"(±버튼·숫자입력) 펼침 토글 — 프리셋만으로는 부족한 미세 조정을
+    // 위한 것이라 상시 노출할 필요가 없다(디자인 종합의견: 상시 노출 컨트롤 축소).
+    this._finetuneToggle = el(
+      'button',
+      {
+        type: 'button',
+        class: 'ft-finetune-toggle',
+        'aria-expanded': 'false',
+        'aria-label': '미세 조정 펼치기',
+      },
+      '미세 조정',
+      buildChevronIcon(),
+    );
+    controls.append(this._finetuneToggle);
+
+    this._finetunePanel = el('div', { class: 'ft-finetune', hidden: '' });
+
     this._deltaButtons = DELTA_STEPS.map((d) =>
       el('button', { type: 'button', 'data-delta': String(d) }, d > 0 ? `+${d}` : String(d)),
     );
-    this._deltaButtons.forEach((b) => controls.append(b));
+    this._deltaButtons.forEach((b) => this._finetunePanel.append(b));
 
     this._numberInput = el('input', {
       type: 'number',
@@ -425,19 +471,62 @@ class FocusTimer extends HTMLElement {
       max: String(this._cfg.maxMinutes),
       'aria-label': '분 직접 입력',
     });
-    controls.append(this._numberInput);
-
-    this._primaryBtn = el('button', { type: 'button', part: 'pause-button' }, '시작');
-    controls.append(this._primaryBtn);
-
-    this._resetBtn = el('button', { type: 'button' }, '리셋');
-    controls.append(this._resetBtn);
-
-    this._previewBtn = el('button', { type: 'button' }, '알람 미리 듣기');
-    controls.append(this._previewBtn);
+    this._finetunePanel.append(this._numberInput);
+    controls.append(this._finetunePanel);
 
     widget.append(controls);
-    widget.append(this._buildOptions());
+
+    // 유틸리티 바 — 목표 입력(+) 과 설정(톱니) 두 저빈도 진입점만 상시 노출한다.
+    const utilityRow = el('div', { class: 'ft-utility-row' });
+    this._goalInput = el('input', {
+      type: 'text',
+      class: 'ft-goal-input',
+      maxlength: '60',
+      placeholder: '오늘의 목표를 한 가지만 적어보세요',
+      hidden: '',
+      'aria-label': '오늘의 목표 입력',
+    });
+    this._goalFab = el(
+      'button',
+      { type: 'button', class: 'ft-fab', 'aria-label': '오늘의 목표 설정' },
+      buildPlusIcon(),
+    );
+    this._settingsToggle = el(
+      'button',
+      { type: 'button', class: 'ft-fab', 'aria-expanded': 'false', 'aria-label': '설정 펼치기' },
+      buildGearIcon(),
+    );
+    utilityRow.append(this._goalInput, this._goalFab, this._settingsToggle);
+    widget.append(utilityRow);
+
+    // 설정 패널 — 테마/게이지/리셋/알람 미리듣기처럼 매 세션 쓰지 않는 기능을
+    // 한데 묶어 톱니 아이콘 뒤로 숨긴다.
+    this._settingsPanel = el('div', { class: 'ft-settings-panel', hidden: '' });
+    const settingsButtons = el('div', { class: 'ft-controls ft-controls--tight' });
+    this._resetBtn = el('button', { type: 'button' }, '리셋');
+    settingsButtons.append(this._resetBtn);
+    this._previewBtn = el('button', { type: 'button' }, '알람 미리 듣기');
+    settingsButtons.append(this._previewBtn);
+    this._settingsPanel.append(settingsButtons);
+    this._settingsPanel.append(this._buildOptions());
+    widget.append(this._settingsPanel);
+
+    // 하단 부가 정보 — 날짜/시각 상태바 + 명언 로테이터. 핵심 과업(타이머)보다
+    // 우선순위가 낮은 정보라 맨 아래, 옅은 톤으로 둔다.
+    const secondary = el('div', { class: 'ft-secondary' });
+    const statusBar = el('div', { class: 'ft-status' });
+    this._dateEl = el('span', { class: 'ft-status-date' });
+    this._clockEl = el('span', { class: 'ft-status-clock' });
+    statusBar.append(this._dateEl, this._clockEl);
+    secondary.append(statusBar);
+
+    this._quoteBlock = el('div', { class: 'ft-quote' });
+    this._quoteTextEl = el('p', { class: 'ft-quote-text' });
+    this._quoteAuthorEl = el('p', { class: 'ft-quote-author' });
+    this._quoteBlock.append(this._quoteTextEl, this._quoteAuthorEl);
+    secondary.append(this._quoteBlock);
+    widget.append(secondary);
+
     this.shadowRoot.append(widget);
 
     this._widget = widget;
@@ -581,6 +670,27 @@ class FocusTimer extends HTMLElement {
     this._previewBtn.addEventListener('click', this._onPreview);
 
     this._wireOptions();
+    this._wireDisclosures();
+  }
+
+  /**
+   * 상시 노출을 줄이려고 접어둔 두 패널(미세 조정 / 설정)의 펼침·접힘 토글만
+   * 배선한다 — 안의 컨트롤 자체는 이미 각자 배선돼 있다(디자인 종합의견).
+   */
+  _wireDisclosures() {
+    this._onFinetuneToggle = () => {
+      const willShow = this._finetunePanel.hidden;
+      this._finetunePanel.hidden = !willShow;
+      this._finetuneToggle.setAttribute('aria-expanded', String(willShow));
+    };
+    this._finetuneToggle.addEventListener('click', this._onFinetuneToggle);
+
+    this._onSettingsToggle = () => {
+      const willShow = this._settingsPanel.hidden;
+      this._settingsPanel.hidden = !willShow;
+      this._settingsToggle.setAttribute('aria-expanded', String(willShow));
+    };
+    this._settingsToggle.addEventListener('click', this._onSettingsToggle);
   }
 
   /**
@@ -1100,6 +1210,8 @@ class FocusTimer extends HTMLElement {
     if (this._previewBtn) this._previewBtn.removeEventListener('click', this._onPreview);
     (this._themeButtons || []).forEach((b) => b.removeEventListener('click', this._onThemeClick));
     (this._gaugeButtons || []).forEach((b) => b.removeEventListener('click', this._onGaugeClick));
+    if (this._finetuneToggle) this._finetuneToggle.removeEventListener('click', this._onFinetuneToggle);
+    if (this._settingsToggle) this._settingsToggle.removeEventListener('click', this._onSettingsToggle);
     if (this._clockTimerId != null) this._port.clearTimeout(this._clockTimerId);
     if (this._quoteTimerId != null) this._port.clearTimeout(this._quoteTimerId);
     if (this._goalFab) this._goalFab.removeEventListener('click', this._onGoalFabClick);
