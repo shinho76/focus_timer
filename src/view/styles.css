@@ -331,10 +331,10 @@
   filter: brightness(1.08);
 }
 
-/* ── 테마 스와치 + 게이지 스타일 토글 (디자인 요청 ③④) ───────────────────
+/* ── 테마 색상 세그먼트 + 게이지 스타일 아이콘 세그먼트 (디자인 요청 ③④) ──
  * 12개(테마 6 × 게이지 2) 낱개 버튼 대신, "색"과 "모양"을 각각 하나의
- * 컨트롤로 분리했다 — 사용자가 실수로 지나치게 많은 버튼과 씨름하지 않고도
- * 6×2 = 12가지 조합 전부에 도달할 수 있다.
+ * 컨트롤로 분리했다. 텍스트 라벨은 쓰지 않는다 — 테마는 버튼 자체의 색이,
+ * 게이지는 아이콘 모양이 곧 라벨이다(스크린리더용 이름은 aria-label로만).
  */
 .ft-options {
   display: flex;
@@ -412,14 +412,38 @@
   font-weight: 600;
 }
 
-/* 테마 세그먼트는 라벨 아래에 그 테마의 강조색을 얇게 깔아 색 정체성을
-   유지한다 — 선택되지 않은 상태에서도 어떤 색인지 미리 보인다. */
+/* 테마 세그먼트: 글자 없이 버튼 전체를 그 테마의 강조색으로 채운다 — 이름이
+   아니라 색 자체가 곧 라벨이다. 선택된 항목은 안쪽 링으로만 구분한다
+   (배경을 --ft-gauge 로 덮어써 버리면 정작 어떤 색인지 안 보이게 된다). */
 .ft-segmented__item--swatch {
-  box-shadow: inset 0 -3px 0 var(--swatch-bg);
+  min-height: 34px;
+  min-width: 34px;
+  background: var(--swatch-bg);
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.2);
+}
+
+.ft-segmented__item--swatch:hover:not(:disabled) {
+  filter: brightness(1.12);
 }
 
 .ft-segmented__item--swatch[aria-pressed="true"] {
-  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.25);
+  background: var(--swatch-bg);
+  box-shadow: inset 0 0 0 3px var(--ft-chassis-fg, #e8e8ea);
+}
+
+/* 게이지 스타일 세그먼트: 텍스트 대신 아이콘 하나로 구분한다
+   (segments = 점선 링 "띠 모양", sector = 꽉 찬 원 "속이 균일한 색"). */
+.ft-segmented__item--icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+}
+
+.ft-gauge-icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
 }
 
 /* ── 스크린리더 전용 상태 안내 영역 (spec §8, aria-live="polite" 1회 안내) ──

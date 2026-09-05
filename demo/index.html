@@ -6,40 +6,11 @@
   <title>focus-timer demo</title>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 900px; margin: 0 auto; padding: 24px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; }
-    .cell { border: 1px solid #ddd; border-radius: 12px; padding: 16px; text-align: center; }
-    .cell h3 { margin: 0 0 12px; font-size: 14px; font-weight: 600; }
   </style>
 </head>
 <body>
-  <h1>focus-timer</h1>
-  <p>기본 인스턴스 (auto 테마, sector 게이지, 25분)</p>
   <focus-timer default-minutes="25" notify="off"></focus-timer>
 
-  <h2>테마 × 게이지 12조합</h2>
-  <div class="grid" id="grid"></div>
-
   <script src="../dist/focus-timer.js"></script>
-  <script>
-    const themes = ['classic', 'purple', 'pink', 'sky', 'dark', 'auto'];
-    const gauges = ['sector', 'segments'];
-    const grid = document.getElementById('grid');
-    for (const theme of themes) {
-      for (const gauge of gauges) {
-        const cell = document.createElement('div');
-        cell.className = 'cell';
-        const h = document.createElement('h3');
-        h.textContent = `${theme} / ${gauge}`;
-        const ft = document.createElement('focus-timer');
-        ft.setAttribute('theme', theme);
-        ft.setAttribute('gauge', gauge);
-        ft.setAttribute('default-minutes', '25');
-        ft.setAttribute('persist', 'off');
-        ft.setAttribute('title-sync', 'off');
-        cell.append(h, ft);
-        grid.append(cell);
-      }
-    }
-  </script>
 </body>
 </html>

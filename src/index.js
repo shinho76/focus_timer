@@ -76,6 +76,47 @@ function el(tag, attrs, ...children) {
   return node;
 }
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function svgEl(tag, attrs) {
+  const node = document.createElementNS(SVG_NS, tag);
+  if (attrs) {
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+  }
+  return node;
+}
+
+/**
+ * 게이지 스타일 세그먼트 버튼용 미니 아이콘. 텍스트 라벨 없이 모양만으로
+ * 구분한다: segments = "띠 모양"(점선 링), sector = "속이 균일한 색"(꽉 찬 원).
+ * @param {'segments'|'sector'} kind
+ * @returns {SVGElement}
+ */
+function buildGaugeIcon(kind) {
+  const svg = svgEl('svg', {
+    class: 'ft-gauge-icon',
+    viewBox: '0 0 20 20',
+    'aria-hidden': 'true',
+    focusable: 'false',
+  });
+  if (kind === 'sector') {
+    svg.append(svgEl('circle', { cx: 10, cy: 10, r: 7, fill: 'currentColor' }));
+  } else {
+    svg.append(
+      svgEl('circle', {
+        cx: 10,
+        cy: 10,
+        r: 7,
+        fill: 'none',
+        stroke: 'currentColor',
+        'stroke-width': 4,
+        'stroke-dasharray': '3.2 2.6',
+      }),
+    );
+  }
+  return svg;
+}
+
 class FocusTimer extends HTMLElement {
   static get observedAttributes() {
     return ['theme', 'gauge', 'volume', 'alarm-length', 'flash', 'notify'];
@@ -315,30 +356,27 @@ class FocusTimer extends HTMLElement {
   }
 
   /**
-   * 디자인 개편(③④, 2차 개정): 6개 테마 × 2개 게이지 = 12조합 전부에 실시간으로
-   * 닿을 수 있는 컨트롤. 두 축(색/모양)을 분리해서 선택지를 늘어놓되, 프리셋
-   * 버튼과 시각적으로 통일되도록 전부 같은 "세그먼트 버튼" 컴포넌트
-   * (`.ft-segmented`)를 쓴다 — 원형 스와치였던 이전 버전 대신 라벨이 보이는
-   * 사각 세그먼트로 바꿔 테마 이름도 함께 읽을 수 있게 했다. 각 세그먼트
-   * 아래쪽에 그 테마의 강조색을 얇게 깔아 색 정체성은 그대로 유지한다.
+   * 디자인 개편(③④, 3차 개정): 6개 테마 × 2개 게이지 = 12조합 전부에 실시간으로
+   * 닿을 수 있는 컨트롤. 텍스트 라벨을 걷어내고 순수하게 색/아이콘만으로
+   * 구분한다 — 테마 세그먼트는 버튼 전체를 그 테마의 강조색으로 채우고,
+   * 게이지 세그먼트는 "띠 모양"(segments, 점선 링 아이콘)과 "속이 균일한
+   * 색"(sector/파이차트, 꽉 찬 원 아이콘)으로 표현한다. 시각 장애 사용자를
+   * 위한 이름은 `aria-label` 로만 남긴다.
    * @returns {HTMLElement}
    */
   _buildOptions() {
     const options = el('div', { class: 'ft-options', part: 'options' });
 
-    const themeRow = el('div', { class: 'ft-option-row' }, el('span', { class: 'ft-option-label' }, '테마'));
+    const themeRow = el('div', { class: 'ft-option-row' });
     const themeGroup = el('div', { class: 'ft-segmented', role: 'group', 'aria-label': '테마' });
     this._themeButtons = THEMES.map(({ id, label }) => {
-      const btn = el(
-        'button',
-        {
-          type: 'button',
-          class: `ft-segmented__item ft-segmented__item--swatch ft-swatch--${id}`,
-          'data-theme': id,
-          'aria-pressed': 'false',
-        },
-        label,
-      );
+      const btn = el('button', {
+        type: 'button',
+        class: `ft-segmented__item ft-segmented__item--swatch ft-swatch--${id}`,
+        'data-theme': id,
+        'aria-label': `${label} 테마`,
+        'aria-pressed': 'false',
+      });
       themeGroup.append(btn);
       return btn;
     });
@@ -348,11 +386,14 @@ class FocusTimer extends HTMLElement {
     const gaugeRow = el('div', { class: 'ft-option-row' }, el('span', { class: 'ft-option-label' }, '게이지'));
     const gaugeGroup = el('div', { class: 'ft-segmented', role: 'group', 'aria-label': '게이지 스타일' });
     this._gaugeButtons = GAUGE_STYLES.map(({ id, label }) => {
-      const btn = el(
-        'button',
-        { type: 'button', class: 'ft-segmented__item', 'data-gauge': id, 'aria-pressed': 'false' },
-        label,
-      );
+      const btn = el('button', {
+        type: 'button',
+        class: 'ft-segmented__item ft-segmented__item--icon',
+        'data-gauge': id,
+        'aria-label': label,
+        'aria-pressed': 'false',
+      });
+      btn.append(buildGaugeIcon(id));
       gaugeGroup.append(btn);
       return btn;
     });
