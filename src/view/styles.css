@@ -7,6 +7,9 @@
  *
  * 공개 테마 API (spec §9.1) — 이름 변경 금지:
  *   --ft-bg  --ft-gauge  --ft-track  --ft-text  --ft-mark  --ft-font  --ft-radius
+ *   --ft-chassis-bg  --ft-chassis-fg  (v1.1 디자인 개정 — §14 참고: 다이얼 판
+ *   바깥을 감싸는 "기기 베젤"의 배경/글자색. 6개 테마 블록 어디서도 재정의하지
+ *   않으므로 테마와 무관하게 항상 어둡다. 호스트가 override 가능)
  */
 
 /* ── 호스트: 사이트 폰트/색 상속이 기본 (spec §9.1) ────────────────── */
@@ -41,6 +44,13 @@
   --ft-mark: #5e5952;
   --ft-font: inherit;
   --ft-radius: 16px;
+  /* 다이얼 판(--ft-bg)이 밝은 테마여도 위젯을 감싸는 "기기 베젤"은 항상
+     검정 계통으로 고정한다(디자인 요청) — 6개 테마 블록 어디에도 이 변수를
+     다시 정의하지 않으므로 테마와 무관하게 늘 같은 값이다. 호스트가 원하면
+     `focus-timer { --ft-chassis-bg: ...; }` 로 오버라이드할 수 있다. */
+  --ft-chassis-bg: #0b0b0e;
+  --ft-chassis-fg: #e8e8ea;
+  --ft-chassis-border: rgba(255, 255, 255, 0.06);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -100,6 +110,29 @@
   --ft-mark: #9a9aa2;
 }
 
+/* ── 테마 스와치 색상 (①⑥번 옵션 버튼 미리보기용) ───────────────────────
+ * 각 테마의 --ft-gauge 값과 맞춰뒀다 — 여기서 색을 새로 정하지 않고 위
+ * 테마 블록과 동기화 상태를 유지해야 한다.
+ */
+.ft-swatch--auto {
+  --swatch-bg: linear-gradient(135deg, #1f6f4a 50%, #f5a524 50%);
+}
+.ft-swatch--classic {
+  --swatch-bg: #14562f;
+}
+.ft-swatch--purple {
+  --swatch-bg: #6b2fb5;
+}
+.ft-swatch--pink {
+  --swatch-bg: #b31e5b;
+}
+.ft-swatch--sky {
+  --swatch-bg: #0e5c8a;
+}
+.ft-swatch--dark {
+  --swatch-bg: #f5a524;
+}
+
 /* ── 레이아웃: 다이얼 위에 리드아웃을 겹친다 ───────────────────────── */
 .ft-widget {
   position: relative;
@@ -107,11 +140,21 @@
   container-type: inline-size;
   font-family: var(--ft-font, inherit);
   color: var(--ft-text);
-  border-radius: var(--ft-radius);
+  border-radius: calc(var(--ft-radius) * 1.5);
   /* 부모가 폭을 제약하지 않는 페이지에 그냥 꽂아도 합리적인 크기가 되도록.
      호스트 페이지가 --ft-radius 처럼 이 값도 얼마든지 오버라이드할 수 있다. */
   max-width: 360px;
   margin: 0 auto;
+  /* "기기 베젤" — 다이얼 판(테마색) 바깥은 항상 어둡게 (디자인 요청).
+     참고 이미지의 디지털 타이머처럼 어두운 케이스 안에 다이얼이 얹힌 모양. */
+  background: var(--ft-chassis-bg);
+  border: 1px solid var(--ft-chassis-border);
+  padding: 28px 22px 20px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+.ft-stage {
+  position: relative;
 }
 
 .ft-dial {
@@ -193,7 +236,9 @@
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: baseline;
+  /* baseline 정렬은 한 줄뿐인 flex 컨테이너에서 위쪽으로 쏠린다 —
+     다이얼 정중앙에 오도록 center 로 맞춘다. */
+  align-items: center;
   justify-content: center;
   gap: 0.15em;
   /* 다이얼 드래그를 가로막지 않는다 */
@@ -223,6 +268,150 @@
 
 .ft-readout-unit[hidden] {
   display: none;
+}
+
+/* ── 컨트롤: 프리셋/±/숫자입력/시작-리셋-미리듣기 ─────────────────────── */
+.ft-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 20px;
+}
+
+.ft-controls button,
+.ft-controls input[type="number"] {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ft-chassis-fg, #e8e8ea);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  padding: 7px 12px;
+  min-height: 32px;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, opacity 120ms ease;
+}
+
+.ft-controls input[type="number"] {
+  cursor: text;
+  width: 4.5em;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.ft-controls button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.ft-controls button:focus-visible,
+.ft-controls input[type="number"]:focus-visible {
+  outline: 2px solid var(--ft-gauge);
+  outline-offset: 1px;
+}
+
+.ft-controls button:disabled,
+.ft-controls input[type="number"]:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.ft-controls button[part="pause-button"] {
+  background: var(--ft-gauge);
+  color: #0b0b0e;
+  border-color: transparent;
+  font-weight: 600;
+  padding-inline: 16px;
+}
+
+.ft-controls button[part="pause-button"]:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+/* ── 테마 스와치 + 게이지 스타일 토글 (디자인 요청 ③④) ───────────────────
+ * 12개(테마 6 × 게이지 2) 낱개 버튼 대신, "색"과 "모양"을 각각 하나의
+ * 컨트롤로 분리했다 — 사용자가 실수로 지나치게 많은 버튼과 씨름하지 않고도
+ * 6×2 = 12가지 조합 전부에 도달할 수 있다.
+ */
+.ft-options {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ft-chassis-border);
+}
+
+.ft-option-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ft-option-label {
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ft-chassis-fg, #e8e8ea);
+  opacity: 0.5;
+  min-width: 3.5em;
+}
+
+.ft-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  padding: 0;
+  border: 2px solid transparent;
+  cursor: pointer;
+  background: var(--swatch-bg);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+
+.ft-swatch:hover {
+  transform: scale(1.12);
+}
+
+.ft-swatch:focus-visible {
+  outline: 2px solid var(--ft-chassis-fg, #e8e8ea);
+  outline-offset: 2px;
+}
+
+.ft-swatch[aria-pressed="true"] {
+  border-color: var(--ft-chassis-fg, #e8e8ea);
+}
+
+.ft-gauge-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--ft-chassis-fg, #e8e8ea);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.ft-gauge-toggle:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.ft-gauge-toggle:focus-visible {
+  outline: 2px solid var(--ft-gauge);
+  outline-offset: 1px;
+}
+
+.ft-gauge-toggle-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
 }
 
 /* ── 스크린리더 전용 상태 안내 영역 (spec §8, aria-live="polite" 1회 안내) ──

@@ -36,6 +36,17 @@ import { createPomodoro, POMODORO_PRESETS } from './modes/pomodoro.js';
 const GRACE_MS = 90_000;
 let seq = 0;
 
+/** 6개 테마(spec §3.1) — 스와치 버튼과 aria-label 에 쓴다. 실제 색상은
+ * view/styles.css 의 `:host([theme="..."])` 블록·`.ft-swatch--*` 클래스가 정의한다. */
+const THEMES = [
+  { id: 'auto', label: '자동' },
+  { id: 'classic', label: '클래식' },
+  { id: 'purple', label: '퍼플' },
+  { id: 'pink', label: '핑크' },
+  { id: 'sky', label: '스카이' },
+  { id: 'dark', label: '다크' },
+];
+
 /** Real browser time port. `Date.now`/`performance.now` live ONLY here. */
 function realPort() {
   return {
@@ -231,11 +242,18 @@ class FocusTimer extends HTMLElement {
 
     const widget = el('div', { class: 'ft-widget', part: 'controls' });
 
+    // 다이얼과 리드아웃을 별도의 위치기준 상자(.ft-stage)로 묶는다 — 리드아웃의
+    // `position:absolute; inset:0` 은 이 상자를 기준으로 삼아야 다이얼 위에
+    // 정확히 겹친다. 위젯(.ft-widget) 자체를 기준으로 삼으면 그 아래 컨트롤/
+    // 옵션 영역까지 포함한 전체 높이의 중앙에 텍스트가 떠서, 컨트롤이 늘어날
+    // 때마다(이번 옵션 버튼 추가처럼) 다이얼과 어긋난다.
+    const stage = el('div', { class: 'ft-stage' });
     this._dialContainer = el('div');
-    widget.append(this._dialContainer);
+    stage.append(this._dialContainer);
 
     this._readoutContainer = el('div');
-    widget.append(this._readoutContainer);
+    stage.append(this._readoutContainer);
+    widget.append(stage);
 
     this._liveRegion = el('div', {
       'aria-live': 'polite',
@@ -275,9 +293,47 @@ class FocusTimer extends HTMLElement {
     controls.append(this._previewBtn);
 
     widget.append(controls);
+    widget.append(this._buildOptions());
     this.shadowRoot.append(widget);
 
     this._widget = widget;
+  }
+
+  /**
+   * 디자인 개편(③④): 6개 테마 × 2개 게이지 = 12조합 전부에 실시간으로
+   * 닿을 수 있는 컨트롤. 12개를 낱개 버튼으로 늘어놓는 대신 "색"(테마
+   * 스와치 6개)과 "모양"(게이지 토글 1개)을 분리했다 — 서로 직교하는
+   * 두 축을 하나의 목록으로 합치면 선택지가 늘어날수록 버튼 수가 배로
+   * 커지고, 지금 무엇이 선택됐는지도 한눈에 안 들어온다.
+   * @returns {HTMLElement}
+   */
+  _buildOptions() {
+    const options = el('div', { class: 'ft-options', part: 'options' });
+
+    const themeRow = el('div', { class: 'ft-option-row' }, el('span', { class: 'ft-option-label' }, '테마'));
+    this._themeButtons = THEMES.map(({ id, label }) => {
+      const btn = el('button', {
+        type: 'button',
+        class: `ft-swatch ft-swatch--${id}`,
+        'data-theme': id,
+        'aria-label': `${label} 테마`,
+        'aria-pressed': 'false',
+      });
+      themeRow.append(btn);
+      return btn;
+    });
+    options.append(themeRow);
+
+    const gaugeRow = el(
+      'div',
+      { class: 'ft-option-row' },
+      el('span', { class: 'ft-option-label' }, '게이지'),
+    );
+    this._gaugeToggleBtn = el('button', { type: 'button', class: 'ft-gauge-toggle' });
+    gaugeRow.append(this._gaugeToggleBtn);
+    options.append(gaugeRow);
+
+    return options;
   }
 
   // ---- 입력 배선 -----------------------------------------------------------------
@@ -357,6 +413,26 @@ class FocusTimer extends HTMLElement {
     this._resetBtn.addEventListener('click', this._onReset);
     this._onPreview = () => this._audio.previewAlarm(this._cfg.volume);
     this._previewBtn.addEventListener('click', this._onPreview);
+
+    this._wireOptions();
+  }
+
+  /**
+   * 테마 스와치 6개 + 게이지 토글 1개 배선(디자인 개편③④). 테마/게이지는
+   * 다이얼 값이 아니라 순전히 겉모습이라 running 중에도 언제든 바꿀 수
+   * 있다 — spec §3.4 의 "running 중 다이얼 조작 거부"와는 무관하다.
+   */
+  _wireOptions() {
+    this._onThemeClick = (e) => {
+      const btn = e.currentTarget;
+      this.setAttribute('theme', btn.dataset.theme);
+    };
+    this._themeButtons.forEach((b) => b.addEventListener('click', this._onThemeClick));
+
+    this._onGaugeToggle = () => {
+      this.setAttribute('gauge', this._cfg.gauge === 'segments' ? 'sector' : 'segments');
+    };
+    this._gaugeToggleBtn.addEventListener('click', this._onGaugeToggle);
   }
 
   /**
@@ -761,6 +837,8 @@ class FocusTimer extends HTMLElement {
     if (this._primaryBtn) this._primaryBtn.removeEventListener('click', this._onPrimary);
     if (this._resetBtn) this._resetBtn.removeEventListener('click', this._onReset);
     if (this._previewBtn) this._previewBtn.removeEventListener('click', this._onPreview);
+    (this._themeButtons || []).forEach((b) => b.removeEventListener('click', this._onThemeClick));
+    if (this._gaugeToggleBtn) this._gaugeToggleBtn.removeEventListener('click', this._onGaugeToggle);
     if (this._dialContainer) resetDial(this._dialContainer);
     if (this._readoutContainer) resetReadout(this._readoutContainer);
   }
@@ -787,17 +865,16 @@ class FocusTimer extends HTMLElement {
       locale: this._cfg.lang,
     });
 
-    const showSeconds = !idleLike && remainingMs > 0 && remainingMs <= 60000;
-    const displayMinutes = idleLike
-      ? this._selectedMinutes
-      : showSeconds
-        ? Math.floor(remainingMs / 60000)
-        : Math.max(1, Math.ceil(remainingMs / 60000));
+    // 디자인 개편①: 중앙에 항상 M:SS 로 표시한다(예 "50:00") — 기존 스펙(§0.3)
+    // 은 60초 이하일 때만 M:SS 로 전환했지만, 참고 디자인처럼 설정 단계부터
+    // 항상 "분:초" 로 보여주기로 변경했다(docs/spec-v4.md 각주 참고).
+    // idle/setting 에서는 "지금 설정한 총 시간", 그 이후엔 "남은 시간".
+    const displayMs = state === 'ringing' ? 0 : idleLike ? this._selectedMinutes * 60000 : remainingMs;
 
     renderReadout(this._readoutContainer, {
-      minutes: state === 'ringing' ? 0 : displayMinutes,
-      seconds: Math.floor((remainingMs % 60000) / 1000),
-      showSeconds,
+      minutes: Math.floor(displayMs / 60000),
+      seconds: Math.floor((displayMs % 60000) / 1000),
+      showSeconds: true,
       unit: state === 'ringing' ? '완료' : '분',
       locale: this._cfg.lang,
     });
@@ -820,6 +897,20 @@ class FocusTimer extends HTMLElement {
       this._persistenceAnnounced = true;
       this._announce('기록이 저장되지 않습니다');
     }
+
+    this._renderOptions();
+  }
+
+  /** 테마 스와치의 선택 표시 + 게이지 토글 버튼의 현재 상태 라벨을 갱신한다. */
+  _renderOptions() {
+    if (!this._themeButtons) return;
+    const currentTheme = this.getAttribute('theme') || 'auto';
+    this._themeButtons.forEach((btn) => {
+      btn.setAttribute('aria-pressed', String(btn.dataset.theme === currentTheme));
+    });
+    const isPie = this._cfg.gauge === 'sector';
+    this._gaugeToggleBtn.textContent = isPie ? '게이지: 파이 차트' : '게이지: 세그먼트';
+    this._gaugeToggleBtn.setAttribute('aria-pressed', String(isPie));
   }
 
   _syncTitle() {

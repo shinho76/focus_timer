@@ -42,6 +42,20 @@ npm run build   # dist/focus-timer.js, dist/focus-timer.min.js 생성
 ## CSS 변수 (테마 API)
 
 `--ft-bg` `--ft-gauge` `--ft-track` `--ft-text` `--ft-mark` `--ft-font` `--ft-radius`
+`--ft-chassis-bg` `--ft-chassis-fg` — 다이얼 판을 감싸는 "기기 베젤"의 배경/글자색. 6개 테마 어디서도
+재정의하지 않으므로 테마와 무관하게 항상 어둡다(기본 `#0b0b0e`/`#e8e8ea`). 밝은 배경을 원하면
+`focus-timer { --ft-chassis-bg: #fff; --ft-chassis-fg: #111; }` 처럼 오버라이드.
+
+## 위젯 안의 옵션 컨트롤
+
+`<focus-timer>` 하단에는 항상 두 그룹의 컨트롤이 함께 붙는다 — HTML 속성으로만 정적으로 고르던
+`theme`/`gauge` 를 실행 중에도 클릭 한 번으로 바꿀 수 있다:
+
+- **테마 스와치 6개**: `auto`/`classic`/`purple`/`pink`/`sky`/`dark` 를 색상 원형 버튼으로 전환.
+- **게이지 스타일 토글 1개**: "세그먼트"(60개 분 단위 조각) ↔ "파이 차트"(연속 부채꼴, `gauge="sector"`)
+  전환. 6 × 2 = 12가지 조합 전부에 이 두 컨트롤만으로 도달할 수 있다.
+
+둘 다 다이얼의 "값"이 아니라 순전히 겉모습이라 타이머가 실행 중이어도 언제든 바꿀 수 있다.
 
 기본 위젯 폭은 `max-width: 360px` — 필요하면 `focus-timer { max-width: 480px; }` 로 오버라이드.
 `::part()` 노출: `dial` `readout` `gauge` `controls`.
