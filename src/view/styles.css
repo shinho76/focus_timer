@@ -50,12 +50,22 @@
  * 오버라이드할 수 있다.
  */
 
+/*
+ * v1.3 개정 — 테마 컬러 패밀리 통일(패션 디자이너 피드백). 6개 색상이 각자
+ * 다른 채도/명도(S 39~91%, L 39~64%)로 골라져 있어 "한 컬렉션"이 아니라
+ * 서로 다른 데서 가져온 색처럼 보였다. 색상(H)은 테마 구분을 위해 그대로
+ * 두고, 채도/명도만 S=72% · L=58% 로 통일해 한 팔레트에서 나온 것처럼
+ * 보이게 했다 — 값은 스크립트로 계산해 재검증(node -e, HSL→hex), 대비는
+ * `test/unit/view.dial.test.js` 수용기준 8 로 실측(전부 4:1 이상, 최저
+ * purple 4.12:1 — 기준 3:1 여유 있게 통과).
+ */
+
 /* auto = prefers-color-scheme 추종 (기본값) */
 :host,
 :host([theme="auto"]),
 .ft-theme-auto {
   --ft-bg: #000000;
-  --ft-gauge: #2bbd6e;
+  --ft-gauge: #47e18d;
   --ft-track: #000000;
   --ft-text: #c9c9ce;
   --ft-mark: #8f8f96;
@@ -71,7 +81,10 @@
      전부 순검정으로 맞췄다 — 아래 참고. */
   --ft-chassis-bg: #000000;
   --ft-chassis-fg: #e8e8ea;
-  --ft-chassis-border: rgba(255, 255, 255, 0.08);
+  /* v1.3: 가구 디자이너 피드백 — 챠시 테두리(0.08)가 버튼/세그먼트 테두리
+     (0.14~0.16)보다 유난히 옅어 "같은 제품 라인의 이음매"로 안 읽혔다.
+     전부 같은 테두리 값으로 통일했다("하나의 엣지 프로파일"). */
+  --ft-chassis-border: rgba(255, 255, 255, 0.14);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -79,7 +92,7 @@
   :host([theme="auto"]),
   .ft-theme-auto {
     --ft-bg: #000000;
-    --ft-gauge: #f5a524;
+    --ft-gauge: #e1a647;
     --ft-track: #000000;
     --ft-text: #c9c9ce;
     --ft-mark: #8f8f96;
@@ -89,7 +102,7 @@
 :host([theme="classic"]),
 .ft-theme-classic {
   --ft-bg: #000000;
-  --ft-gauge: #22a35d;
+  --ft-gauge: #47e18d;
   --ft-track: #000000;
   --ft-text: #c9c9ce;
   --ft-mark: #8f8f96;
@@ -98,7 +111,7 @@
 :host([theme="purple"]),
 .ft-theme-purple {
   --ft-bg: #000000;
-  --ft-gauge: #9b5de5;
+  --ft-gauge: #8d47e1;
   --ft-track: #000000;
   --ft-text: #c9c9ce;
   --ft-mark: #8f8f96;
@@ -107,7 +120,7 @@
 :host([theme="pink"]),
 .ft-theme-pink {
   --ft-bg: #000000;
-  --ft-gauge: #f1478c;
+  --ft-gauge: #e14786;
   --ft-track: #000000;
   --ft-text: #c9c9ce;
   --ft-mark: #8f8f96;
@@ -116,7 +129,7 @@
 :host([theme="sky"]),
 .ft-theme-sky {
   --ft-bg: #000000;
-  --ft-gauge: #229ce0;
+  --ft-gauge: #47aae1;
   --ft-track: #000000;
   --ft-text: #c9c9ce;
   --ft-mark: #8f8f96;
@@ -125,7 +138,7 @@
 :host([theme="dark"]),
 .ft-theme-dark {
   --ft-bg: #000000;
-  --ft-gauge: #f5a524;
+  --ft-gauge: #e1a647;
   --ft-track: #000000;
   --ft-text: #c9c9ce;
   --ft-mark: #8f8f96;
@@ -136,22 +149,22 @@
  * 테마 블록과 동기화 상태를 유지해야 한다.
  */
 .ft-swatch--auto {
-  --swatch-bg: linear-gradient(135deg, #2bbd6e 50%, #f5a524 50%);
+  --swatch-bg: linear-gradient(135deg, #47e18d 50%, #e1a647 50%);
 }
 .ft-swatch--classic {
-  --swatch-bg: #22a35d;
+  --swatch-bg: #47e18d;
 }
 .ft-swatch--purple {
-  --swatch-bg: #9b5de5;
+  --swatch-bg: #8d47e1;
 }
 .ft-swatch--pink {
-  --swatch-bg: #f1478c;
+  --swatch-bg: #e14786;
 }
 .ft-swatch--sky {
-  --swatch-bg: #229ce0;
+  --swatch-bg: #47aae1;
 }
 .ft-swatch--dark {
-  --swatch-bg: #f5a524;
+  --swatch-bg: #e1a647;
 }
 
 /* ── 레이아웃: 다이얼 위에 리드아웃을 겹친다 ───────────────────────── */
@@ -172,8 +185,17 @@
      참고 이미지의 디지털 타이머처럼 어두운 케이스 안에 다이얼이 얹힌 모양. */
   background: var(--ft-chassis-bg);
   border: 1px solid var(--ft-chassis-border);
-  padding: 28px 22px 20px;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 12px 28px rgba(0, 0, 0, 0.35);
+  /* v1.3: 패션 디자이너 피드백 — 세로 비례가 "상자"처럼 각져 보였다.
+     상단 패딩을 살짝 줄여 조금 더 슬림한 세로 실루엣을 만들었다
+     (하단은 .ft-secondary 의 상쇄 마진 계산과 맞물려 있어 그대로 둔다). */
+  padding: 24px 22px 20px;
+  /* v1.3: 산업 디자이너 피드백 — 챠시가 "케이스"라는 은유를 갖고 있는데
+     두께감이 없었다. 위쪽 하이라이트 + 아래쪽 그림자를 한 켜씩 더해 미세한
+     베벨(경사면)을 만든다 — 과하지 않게, flat-modern 톤은 유지한다. */
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.4) inset,
+    0 16px 32px rgba(0, 0, 0, 0.45);
 }
 
 /* ── 하단 부가 정보: 날짜/시각 + 명언 (v1.2 화면 단순화) ─────────────────────
@@ -182,9 +204,16 @@
  * 아래로"). 원래대로 옅은 톤은 유지한다.
  */
 .ft-secondary {
-  margin-top: 18px;
-  padding-top: 14px;
+  /* .ft-widget 의 좌우 22px/하단 20px 패딩을 상쇄해 이 구역만 챠시 가장자리까지
+     "완전히 다른 바닥면"처럼 붙인다(건축 디자이너 피드백 — 구분선 하나로는
+     "다른 방"이라는 공간 구획이 약했다). */
+  margin: 18px -22px -20px;
+  padding: 14px 22px 18px;
   border-top: 1px solid var(--ft-chassis-border);
+  /* 아주 미세한 톤 차이(흰 2.5% 오버레이)로 바닥면을 살짝 띄운다 — 검정 수렴
+     원칙(이전 라운드들)을 깨지 않을 정도로 절제했다. */
+  background: rgba(255, 255, 255, 0.025);
+  border-radius: 0 0 calc(var(--ft-radius) * 1.5) calc(var(--ft-radius) * 1.5);
 }
 
 .ft-status {
@@ -257,25 +286,31 @@
  * "저빈도 기능은 아이콘 하나 뒤로"). */
 .ft-utility-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  gap: 8px;
+  gap: 14px;
   margin-top: 16px;
 }
 
+/* v1.3: 가구 디자이너 피드백 — 아이콘 버튼(30px)이 터치 타깃 권장 최소치
+ * (44px)보다 작았다. 버튼 자체를 44px로 키우고, 시각적 크기는 안의 아이콘
+ * 크기로 조절한다(20px). 모양도 완전한 원 → 스퀴클(둥근 사각형)로 바꿔
+ * "히어로(다이얼)만 완전한 원"이라는 실루엣 위계를 만들었다(패션 디자이너
+ * 피드백 — 원형 반복이 단조롭다는 지적).
+ */
 .ft-fab {
   flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
   border: none;
   background: var(--ft-gauge);
   color: #0b0b0e;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15);
   transition: transform 120ms ease, filter 120ms ease;
 }
 
@@ -284,14 +319,51 @@
   transform: scale(1.06);
 }
 
+.ft-fab:active {
+  transform: scale(0.94);
+}
+
 .ft-fab:focus-visible {
   outline: 2px solid var(--ft-chassis-fg, #e8e8ea);
   outline-offset: 2px;
 }
 
+/* v1.3: 시각/UX/프런트엔드 디자이너 공통 피드백 — 목표(+)와 설정(톱니)이
+ * 둘 다 완전 채도 강조색이라 어느 쪽이 자주 쓰는 기능인지 색으로 구분이
+ * 안 됐다. 설정은 저빈도 기능이니 중립색으로 낮춘다(우선순위 토큰:
+ * 목표=primary 액센트, 설정=tertiary 중립). */
+.ft-fab--muted {
+  background: #000000;
+  color: var(--ft-chassis-fg, #e8e8ea);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.ft-fab--muted:hover {
+  filter: none;
+  background: #1a1a1a;
+}
+
 .ft-fab-icon {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
+}
+
+/* 아이콘 버튼 + 캡션 한 쌍(UX 디자이너 피드백 — 아이콘만으론 처음 보는
+ * 사용자가 기능을 추측할 수 없었다). 캡션은 항상 화면에 보이는 짧은
+ * 텍스트라 aria-label 과 별개로 시각적으로도 라벨 역할을 한다. */
+.ft-fab-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.ft-fab-label {
+  font-size: 0.625rem;
+  color: var(--ft-chassis-fg, #e8e8ea);
+  opacity: 0.6;
+  letter-spacing: 0.02em;
 }
 
 .ft-stage {
@@ -323,6 +395,29 @@
 .ft-dial:focus-visible {
   outline: 3px solid var(--ft-gauge);
   outline-offset: 3px;
+}
+
+/* v1.3: 산업 디자이너 피드백 — 다이얼이 평평한 벡터 그래픽처럼 보여 "돌리는
+ * 물건"이라는 촉각적 신뢰감이 없었다. SVG 도형(view/dial.js, 순수 렌더러)은
+ * 건드리지 않고, 그 위에 겹치는 CSS 비네트만으로 오목한 판 느낌을 낸다.
+ * pointer-events:none 이라 다이얼 조작(pointer.js)에는 영향이 없다.
+ */
+.ft-dial::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow:
+    inset 0 3px 10px rgba(0, 0, 0, 0.55),
+    inset 0 -2px 6px rgba(255, 255, 255, 0.04);
+}
+
+.ft-hub {
+  /* 허브(중앙 원)에 아주 옅은 테두리를 줘서 "다이얼 판 위에 얹힌 손잡이"
+     처럼 구조가 읽히게 한다. */
+  stroke: rgba(255, 255, 255, 0.07);
+  stroke-width: 1;
 }
 
 .ft-dial-svg {
@@ -438,7 +533,15 @@
   padding: 7px 12px;
   min-height: 32px;
   cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease, opacity 120ms ease;
+  /* v1.3: 프런트엔드/산업 디자이너 피드백 — 완전 플랫이라 "눌리는 표면"
+     느낌이 없었다. 위 하이라이트 한 줄만 얹어 미세한 볼록함을 준다. */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: background 120ms ease, border-color 120ms ease, opacity 120ms ease,
+    transform 100ms ease;
+}
+
+.ft-controls button:active:not(:disabled) {
+  transform: scale(0.96);
 }
 
 .ft-controls input[type="number"] {
@@ -491,6 +594,10 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  /* v1.3: UX 디자이너 피드백 — 다른 컨트롤과 똑같은 순검정 배경이라 존재감이
+     약해 "미세 조정 기능이 있다"는 걸 놓치기 쉬웠다. 아주 살짝 밝혀서
+     "여기 더 있다"는 신호를 준다(시작 버튼만큼 강조하진 않는다). */
+  background: rgba(255, 255, 255, 0.045);
 }
 
 .ft-chevron-icon {
@@ -582,6 +689,11 @@
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 10px;
   overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.ft-segmented__item:active:not(:disabled) {
+  transform: scale(0.96);
 }
 
 .ft-segmented__item {
@@ -596,7 +708,7 @@
   padding: 8px 10px;
   min-height: 34px;
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
+  transition: background 120ms ease, color 120ms ease, transform 100ms ease;
 }
 
 .ft-segmented__item:last-child {

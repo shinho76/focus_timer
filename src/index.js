@@ -486,17 +486,40 @@ class FocusTimer extends HTMLElement {
       hidden: '',
       'aria-label': '오늘의 목표 입력',
     });
+    // 아이콘만으로는 처음 보는 사용자가 기능을 추측할 수 없다는 지적(디자인
+    // 종합의견) — 아이콘 버튼마다 짧은 캡션을 붙인다. 목표는 자주 쓰는
+    // 진입점이라 액센트색(.ft-fab) 그대로, 설정은 저빈도라 중립색(--muted)
+    // 으로 우선순위를 색으로도 구분했다.
     this._goalFab = el(
       'button',
       { type: 'button', class: 'ft-fab', 'aria-label': '오늘의 목표 설정' },
       buildPlusIcon(),
     );
+    const goalGroup = el(
+      'div',
+      { class: 'ft-fab-group' },
+      this._goalFab,
+      el('span', { class: 'ft-fab-label', 'aria-hidden': 'true' }, '목표'),
+    );
+
     this._settingsToggle = el(
       'button',
-      { type: 'button', class: 'ft-fab', 'aria-expanded': 'false', 'aria-label': '설정 펼치기' },
+      {
+        type: 'button',
+        class: 'ft-fab ft-fab--muted',
+        'aria-expanded': 'false',
+        'aria-label': '설정 펼치기',
+      },
       buildGearIcon(),
     );
-    utilityRow.append(this._goalInput, this._goalFab, this._settingsToggle);
+    const settingsGroup = el(
+      'div',
+      { class: 'ft-fab-group' },
+      this._settingsToggle,
+      el('span', { class: 'ft-fab-label', 'aria-hidden': 'true' }, '설정'),
+    );
+
+    utilityRow.append(this._goalInput, goalGroup, settingsGroup);
     widget.append(utilityRow);
 
     // 설정 패널 — 테마/게이지/리셋/알람 미리듣기처럼 매 세션 쓰지 않는 기능을

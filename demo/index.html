@@ -7,16 +7,59 @@
   <style>
     body { font-family: system-ui, sans-serif; max-width: 900px; margin: 0 auto; padding: 24px; }
 
+    /* ── 런처 버튼: 작아진(모달이 닫힌) 상태의 미니 상태 표시 ────────────────
+       요청: "타이머 열기" 글자를 지우고 남은 시간만, progress bar로 표시.
+       접근성 이름(aria-label)은 "타이머 열기"로 유지해 스크린리더에는
+       여전히 동작이 뭔지 전달한다 — 화면엔 값(시간)만 보인다. */
     .ft-open-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       font: inherit;
       font-size: 1rem;
-      font-weight: 600;
-      padding: 10px 22px;
-      border-radius: 999px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      width: 110px;
+      height: 44px;
+      padding: 0;
+      border-radius: 14px;
       border: none;
-      background: #f5a524;
-      color: #0b0b0e;
+      background: #000000;
+      color: #f2c98a;
       cursor: pointer;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+
+    .ft-open-time {
+      position: relative;
+      z-index: 1;
+    }
+
+    .ft-open-progress {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      appearance: none;
+      -webkit-appearance: none;
+      border: none;
+      background: transparent;
+    }
+
+    .ft-open-progress::-webkit-progress-bar {
+      background: transparent;
+    }
+
+    .ft-open-progress::-webkit-progress-value {
+      background: rgba(245, 165, 36, 0.28);
+      transition: width 200ms linear;
+    }
+
+    .ft-open-progress::-moz-progress-bar {
+      background: rgba(245, 165, 36, 0.28);
+      transition: width 200ms linear;
     }
 
     /* 모달로 띄우기 — 네이티브 <dialog> 를 쓴다(추가 라이브러리 없이 포커스
@@ -30,10 +73,46 @@
       max-width: none;
       max-height: 90vh;
       overflow: visible;
+      /* v1.3 — 열림/닫힘이 순간이동처럼 보인다는 지적(건축/프런트엔드 디자이너)
+         에 따라 스케일+페이드 전환을 넣는다. `.ft-modal-closing` 은 닫기
+         트리거가 눌렸을 때 JS 가 붙였다가, 전환이 끝나면 실제 close()를
+         호출한다(네이티브 dialog 는 닫히는 애니메이션을 그냥은 못 넣는다). */
+      opacity: 1;
+      transform: scale(1);
+      transition: opacity 180ms ease, transform 180ms ease, overlay 180ms ease allow-discrete,
+        display 180ms ease allow-discrete;
+    }
+
+    dialog#ft-modal.ft-modal-closing {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+
+    @starting-style {
+      dialog#ft-modal[open] {
+        opacity: 0;
+        transform: scale(0.96);
+      }
     }
 
     dialog#ft-modal::backdrop {
       background: rgba(0, 0, 0, 0.6);
+      /* 시각 디자이너 피드백 — backdrop 이 평면이라 모달이 배경에서 안
+         "떠 보였다". blur 를 더해 depth 를 준다. */
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      opacity: 1;
+      transition: opacity 180ms ease, overlay 180ms ease allow-discrete, display 180ms ease allow-discrete;
+    }
+
+    dialog#ft-modal.ft-modal-closing::backdrop {
+      opacity: 0;
+    }
+
+    @starting-style {
+      dialog#ft-modal[open]::backdrop {
+        opacity: 0;
+      }
     }
 
     .ft-modal-inner {
@@ -45,6 +124,9 @@
       width: min(400px, 92vw);
       max-height: 90vh;
       overflow: auto;
+      /* 건축 디자이너 피드백 — 광활한 뷰포트에 모달이 덩그러니 떠 보였다.
+         은은한 글로우를 줘서 "제자리에 놓인" 느낌을 보강한다. */
+      filter: drop-shadow(0 24px 60px rgba(0, 0, 0, 0.5));
     }
 
     .ft-modal-close {
@@ -66,10 +148,47 @@
     .ft-modal-close:hover {
       background: #262626;
     }
+
+    /* UX 디자이너 피드백 — 모바일에서 "거의 꽉 찬 중앙 모달"은 바텀시트도
+       풀스크린도 아닌 어중간한 패턴이었다. 좁은 화면에서는 풀스크린
+       테이크오버로 확실히 커밋한다. */
+    @media (max-width: 480px) {
+      dialog#ft-modal {
+        width: 100vw;
+        height: 100vh;
+        max-width: 100vw;
+        max-height: 100vh;
+      }
+
+      .ft-modal-inner {
+        width: 100vw;
+        height: 100vh;
+        max-height: 100vh;
+        overflow-y: auto;
+        /* column 방향 + justify-content:center 로 세로 중앙 정렬하고,
+           기본값인 align-items:stretch 가 focus-timer(플렉스 아이템)를
+           가로로 100vw 꽉 채운다 — 그래야 내부의 %기반 레이아웃
+           (.ft-widget max-width:400px; margin:0 auto)이 자기 안에서
+           정상적으로 중앙 정렬된다. stretch 없이 두면 <dialog> 의
+           width:fit-content 때와 같은 이유로 아이템이 좁게 찌그러진다. */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        filter: none;
+      }
+
+      .ft-modal-close {
+        top: 14px;
+        right: 14px;
+      }
+    }
   </style>
 </head>
 <body>
-  <button type="button" class="ft-open-btn" id="ft-open">타이머 열기</button>
+  <button type="button" class="ft-open-btn" id="ft-open" aria-label="타이머 열기">
+    <span class="ft-open-time" id="ft-open-time">25:00</span>
+    <progress class="ft-open-progress" id="ft-open-progress" value="1" max="1"></progress>
+  </button>
 
   <dialog id="ft-modal">
     <div class="ft-modal-inner">
@@ -81,13 +200,78 @@
   <script src="../dist/focus-timer.js"></script>
   <script>
     const modal = document.getElementById('ft-modal');
-    document.getElementById('ft-open').addEventListener('click', () => modal.showModal());
-    document.getElementById('ft-close').addEventListener('click', () => modal.close());
+    const openBtn = document.getElementById('ft-open');
+    const openTimeEl = document.getElementById('ft-open-time');
+    const openProgressEl = document.getElementById('ft-open-progress');
+    const ft = document.querySelector('focus-timer');
+
+    // ── 모달 열림/닫힘에 스케일+페이드 전환을 준다 ────────────────────────
+    // 네이티브 <dialog>는 close()가 즉시 top-layer 에서 빠져버려 CSS
+    // 전환이 재생될 시간이 없다 — 닫기 트리거는 전부 이 함수로 모아서
+    // "닫는 중" 클래스를 붙이고, 전환이 끝난 뒤에 실제 close()를 부른다.
+    function closeModalAnimated() {
+      if (modal.classList.contains('ft-modal-closing')) return;
+      modal.classList.add('ft-modal-closing');
+      const onEnd = (e) => {
+        if (e.target !== modal) return;
+        modal.removeEventListener('transitionend', onEnd);
+        modal.classList.remove('ft-modal-closing');
+        modal.close();
+      };
+      modal.addEventListener('transitionend', onEnd);
+    }
+
+    openBtn.addEventListener('click', () => modal.showModal());
+    document.getElementById('ft-close').addEventListener('click', closeModalAnimated);
     // backdrop 클릭으로도 닫는다 — showModal() 상태에서 backdrop 클릭은
     // 이벤트 target 이 dialog 자기 자신(내부 요소가 아니라)으로 잡힌다.
     modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.close();
+      if (e.target === modal) closeModalAnimated();
     });
+    // Escape 는 기본적으로 즉시 닫아버리므로 가로채 애니메이션 경로로 보낸다.
+    modal.addEventListener('cancel', (e) => {
+      e.preventDefault();
+      closeModalAnimated();
+    });
+
+    // ── 런처 버튼 = "작아진 상태"의 미니 상태 표시 ────────────────────────
+    // 모달이 닫혀 있어도 남은 시간과 진행률을 실시간으로 보여준다. 공개
+    // 이벤트(spec §10: ft:set/ft:tick/ft:statechange/ft:complete/ft:ring)
+    // 만 구독한다 — 위젯 내부 상태를 직접 건드리지 않는다.
+    let selectedMinutes = Number(ft.getAttribute('default-minutes')) || 25;
+
+    function formatClock(ms) {
+      const totalSec = Math.max(0, Math.round(ms / 1000));
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    function renderLauncher() {
+      const state = ft.state;
+      const idleLike = state === 'idle' || state === 'setting';
+      if (idleLike) {
+        openTimeEl.textContent = formatClock(selectedMinutes * 60000);
+        openProgressEl.max = 1;
+        openProgressEl.value = 1;
+      } else {
+        const total = ft.totalMs || 1;
+        const remaining = state === 'ringing' ? 0 : ft.remainingMs;
+        openTimeEl.textContent = formatClock(remaining);
+        openProgressEl.max = total;
+        openProgressEl.value = Math.max(0, Math.min(total, remaining));
+      }
+    }
+
+    ft.addEventListener('ft:set', (e) => {
+      selectedMinutes = e.detail.minutes;
+      renderLauncher();
+    });
+    ft.addEventListener('ft:tick', renderLauncher);
+    ft.addEventListener('ft:statechange', renderLauncher);
+    ft.addEventListener('ft:complete', renderLauncher);
+    ft.addEventListener('ft:ring', renderLauncher);
+    renderLauncher();
   </script>
 </body>
 </html>
