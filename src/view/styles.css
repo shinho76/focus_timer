@@ -39,7 +39,14 @@
 .ft-theme-auto {
   --ft-bg: #faf7f2;
   --ft-gauge: #1f6f4a;
-  --ft-track: #e3ddd3;
+  /* --ft-track(미채움 게이지)는 6개 테마 전부 순검정으로 고정한다(디자인
+     요청 — 렌더 스크린샷에 두 테마에서 같은 자리를 마킹하며 "배경색과
+     동일한 검정색으로"). 다이얼 판(--ft-bg)은 테마색을 유지하되, 게이지의
+     "남은/미채움" 부분만 위젯 배경과 같은 검정으로 비워 보이게 해서 채워진
+     호(--ft-gauge)만 도드라지게 한다. 값은 6곳 모두 동일하지만, 테마 API
+     계약(각 테마 블록이 자기 --ft-track 을 갖는다)은 그대로 유지했다 —
+     호스트가 원하면 특정 테마만 다시 오버라이드할 수 있다. */
+  --ft-track: #000000;
   --ft-text: #1f1d1a;
   --ft-mark: #5e5952;
   --ft-font: inherit;
@@ -63,7 +70,7 @@
   .ft-theme-auto {
     --ft-bg: #131316;
     --ft-gauge: #f5a524;
-    --ft-track: #2c2c31;
+    --ft-track: #000000;
     --ft-text: #f2f2f2;
     --ft-mark: #9a9aa2;
   }
@@ -73,7 +80,7 @@
 .ft-theme-classic {
   --ft-bg: #f4ebdc;
   --ft-gauge: #14562f;
-  --ft-track: #dccdb4;
+  --ft-track: #000000;
   --ft-text: #2e2a24;
   --ft-mark: #6b5f4c;
 }
@@ -82,7 +89,7 @@
 .ft-theme-purple {
   --ft-bg: #efe6fa;
   --ft-gauge: #6b2fb5;
-  --ft-track: #dccdee;
+  --ft-track: #000000;
   --ft-text: #2b2140;
   --ft-mark: #6b5a85;
 }
@@ -91,7 +98,7 @@
 .ft-theme-pink {
   --ft-bg: #fbe7ef;
   --ft-gauge: #b31e5b;
-  --ft-track: #f0cedb;
+  --ft-track: #000000;
   --ft-text: #3a1d28;
   --ft-mark: #8a5a6c;
 }
@@ -100,7 +107,7 @@
 .ft-theme-sky {
   --ft-bg: #e4f0fa;
   --ft-gauge: #0e5c8a;
-  --ft-track: #c6dfef;
+  --ft-track: #000000;
   --ft-text: #16303d;
   --ft-mark: #4e7186;
 }
@@ -109,7 +116,7 @@
 .ft-theme-dark {
   --ft-bg: #131316;
   --ft-gauge: #f5a524;
-  --ft-track: #2c2c31;
+  --ft-track: #000000;
   --ft-text: #f2f2f2;
   --ft-mark: #9a9aa2;
 }

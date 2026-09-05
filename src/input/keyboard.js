@@ -27,8 +27,10 @@
  * @property {(v: boolean|null) => void} setDisabled
  */
 
-/** 프리셋 버튼 값 (spec §2.3 / §3.3 — v1 디자인 개정으로 9개로 확장, docs/spec-v4.md 각주 참고). */
-export const PRESET_MINUTES = Object.freeze([5, 10, 15, 20, 25, 30, 40, 50, 60]);
+/** 프리셋 버튼 값 (spec §2.3 / §3.3 — v1 디자인 개정, docs/spec-v4.md 각주 참고).
+ * 9개(5~60, 10단위 위주)로 늘렸다가, 한 줄에 다 들어오도록 7개로 다시 줄였다:
+ * 25(다이얼 기본값과 겹쳐 굳이 버튼이 필요 없음)와 50 삭제, 40→45로 교체. */
+export const PRESET_MINUTES = Object.freeze([5, 10, 15, 20, 30, 45, 60]);
 
 /** ± 버튼 스텝 (spec §2.3 / §3.3). */
 export const DELTA_STEPS = Object.freeze([-5, -1, 1, 5]);
