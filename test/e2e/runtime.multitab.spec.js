@@ -13,6 +13,10 @@ async function gotoFresh(page) {
   await page.goto('/demo/index.html');
   await page.evaluate(() => {
     localStorage.clear();
+    // 데모 페이지가 위젯을 <dialog> 모달 안에 넣어뒀다 — 리더 선출 자체는
+    // 화면 표시와 무관하게 동작하지만, 이 스위트의 다른 테스트들이 primary
+    // 버튼 클릭 등 실제 상호작용도 하므로 열어둔 상태로 통일한다.
+    document.getElementById('ft-modal').showModal();
   });
 }
 

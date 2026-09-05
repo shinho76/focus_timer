@@ -13,6 +13,11 @@ async function gotoFresh(page) {
   await page.evaluate(() => {
     localStorage.clear();
     document.querySelector('focus-timer').reset();
+    // 데모 페이지가 위젯을 <dialog> 모달 안에 넣어뒀다("모달로 띄우기" 요청) —
+    // 닫힌 dialog 는 렌더링되지 않아(UA 기본 `display:none`) 좌표 기반 상호작용이
+    // 전부 실패한다. 테스트는 실제 사용자가 "타이머 열기" 버튼을 누른 뒤의
+    // 상태를 검증하는 것이므로 여기서 그 상태를 재현한다.
+    document.getElementById('ft-modal').showModal();
   });
 }
 

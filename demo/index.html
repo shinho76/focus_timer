@@ -6,11 +6,88 @@
   <title>focus-timer demo</title>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 900px; margin: 0 auto; padding: 24px; }
+
+    .ft-open-btn {
+      font: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 10px 22px;
+      border-radius: 999px;
+      border: none;
+      background: #f5a524;
+      color: #0b0b0e;
+      cursor: pointer;
+    }
+
+    /* 모달로 띄우기 — 네이티브 <dialog> 를 쓴다(추가 라이브러리 없이 포커스
+       트랩·ESC 닫기·backdrop 이 브라우저 기본 제공). 다이얼로그 자체의 UA
+       기본 테두리/여백/배경만 지우고, 실제 카드 모양은 focus-timer 위젯
+       자신의 "기기 베젤" 스타일을 그대로 쓴다. */
+    dialog#ft-modal {
+      border: none;
+      padding: 0;
+      background: transparent;
+      max-width: none;
+      max-height: 90vh;
+      overflow: visible;
+    }
+
+    dialog#ft-modal::backdrop {
+      background: rgba(0, 0, 0, 0.6);
+    }
+
+    .ft-modal-inner {
+      position: relative;
+      /* focus-timer 내부는 %기반 레이아웃(.ft-widget max-width, .ft-dial
+         width:100% 등)이라, <dialog> 기본값인 width:fit-content 안에 그냥
+         두면 셀프-크기 계산이 순환 참조에 빠져 위젯이 극단적으로 좁게
+         찌그러진다(실측: 46px). 명시적 너비를 줘서 그 순환을 끊는다. */
+      width: min(400px, 92vw);
+      max-height: 90vh;
+      overflow: auto;
+    }
+
+    .ft-modal-close {
+      position: absolute;
+      top: -14px;
+      right: -14px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: none;
+      background: #1a1a1a;
+      color: #e8e8ea;
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    .ft-modal-close:hover {
+      background: #262626;
+    }
   </style>
 </head>
 <body>
-  <focus-timer default-minutes="25" notify="off"></focus-timer>
+  <button type="button" class="ft-open-btn" id="ft-open">타이머 열기</button>
+
+  <dialog id="ft-modal">
+    <div class="ft-modal-inner">
+      <button type="button" class="ft-modal-close" id="ft-close" aria-label="닫기">✕</button>
+      <focus-timer default-minutes="25" notify="off"></focus-timer>
+    </div>
+  </dialog>
 
   <script src="../dist/focus-timer.js"></script>
+  <script>
+    const modal = document.getElementById('ft-modal');
+    document.getElementById('ft-open').addEventListener('click', () => modal.showModal());
+    document.getElementById('ft-close').addEventListener('click', () => modal.close());
+    // backdrop 클릭으로도 닫는다 — showModal() 상태에서 backdrop 클릭은
+    // 이벤트 target 이 dialog 자기 자신(내부 요소가 아니라)으로 잡힌다.
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.close();
+    });
+  </script>
 </body>
 </html>
