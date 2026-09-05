@@ -443,6 +443,13 @@ class FocusTimer extends HTMLElement {
     this._primaryBtn = el('button', { type: 'button', part: 'pause-button' }, '시작');
     controls.append(this._primaryBtn);
 
+    // 리셋은 "저빈도 설정"이 아니라 실행/일시정지 중인 타이머를 즉시 되돌리는
+    // 상시 필요한 복구 동작이다 — 예전 라운드에서 설정 패널 안에 넣어뒀더니
+    // "다시 찾기 어렵다"는 사용자 피드백을 받아, 시작 버튼 옆 상시 노출
+    // 위치로 옮겼다(디자인 원칙: 저빈도 "설정" ≠ 상시 필요한 "제어").
+    this._resetBtn = el('button', { type: 'button' }, '리셋');
+    controls.append(this._resetBtn);
+
     // "미세 조정"(±버튼·숫자입력) 펼침 토글 — 프리셋만으로는 부족한 미세 조정을
     // 위한 것이라 상시 노출할 필요가 없다(디자인 종합의견: 상시 노출 컨트롤 축소).
     this._finetuneToggle = el(
@@ -522,12 +529,11 @@ class FocusTimer extends HTMLElement {
     utilityRow.append(this._goalInput, goalGroup, settingsGroup);
     widget.append(utilityRow);
 
-    // 설정 패널 — 테마/게이지/리셋/알람 미리듣기처럼 매 세션 쓰지 않는 기능을
-    // 한데 묶어 톱니 아이콘 뒤로 숨긴다.
+    // 설정 패널 — 테마/게이지/알람 미리듣기처럼 매 세션 쓰지 않는 기능을 한데
+    // 묶어 톱니 아이콘 뒤로 숨긴다. 리셋은 더 이상 여기 없다(위 참고 — 상시
+    // 노출 위치로 이동).
     this._settingsPanel = el('div', { class: 'ft-settings-panel', hidden: '' });
     const settingsButtons = el('div', { class: 'ft-controls ft-controls--tight' });
-    this._resetBtn = el('button', { type: 'button' }, '리셋');
-    settingsButtons.append(this._resetBtn);
     this._previewBtn = el('button', { type: 'button' }, '알람 미리 듣기');
     settingsButtons.append(this._previewBtn);
     this._settingsPanel.append(settingsButtons);

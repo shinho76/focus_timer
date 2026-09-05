@@ -247,19 +247,24 @@
       return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     }
 
+    // v1.4 — 사용자 피드백: progress bar는 "남은 시간(감소)"이 아니라
+    // "경과율(%, 증가)"을 기준으로 삼는다 — 남은 시간이 0이 되는 순간이
+    // 100%가 되도록. <progress> 의 value/max 를 그대로 0~100 스케일로
+    // 맞춰 접근성 트리에도 "n% 완료"로 정확히 announce 된다.
     function renderLauncher() {
       const state = ft.state;
       const idleLike = state === 'idle' || state === 'setting';
+      openProgressEl.max = 100;
       if (idleLike) {
+        // 아직 시작 전 — 경과가 없으니 0%.
         openTimeEl.textContent = formatClock(selectedMinutes * 60000);
-        openProgressEl.max = 1;
-        openProgressEl.value = 1;
+        openProgressEl.value = 0;
       } else {
         const total = ft.totalMs || 1;
         const remaining = state === 'ringing' ? 0 : ft.remainingMs;
+        const elapsed = Math.max(0, Math.min(total, total - remaining));
         openTimeEl.textContent = formatClock(remaining);
-        openProgressEl.max = total;
-        openProgressEl.value = Math.max(0, Math.min(total, remaining));
+        openProgressEl.value = (elapsed / total) * 100;
       }
     }
 
