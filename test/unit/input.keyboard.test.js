@@ -179,9 +179,9 @@ describe('attachKeyboard — running 중 거부 (기준 7, spec §3.4)', () => {
 });
 
 describe('병렬 입력 수단 헬퍼 (spec §3.3)', () => {
-  it('프리셋/델타 상수는 명세값과 일치한다 (v1 디자인 개정 — 한 줄에 맞춰 7개로 재조정)', () => {
+  it('프리셋/델타 상수는 명세값과 일치한다 (v1 디자인 개정 — 프리셋 7개, 델타 ±10 추가)', () => {
     expect([...PRESET_MINUTES]).toEqual([5, 10, 15, 20, 30, 45, 60]);
-    expect([...DELTA_STEPS]).toEqual([-5, -1, 1, 5]);
+    expect([...DELTA_STEPS]).toEqual([-10, -5, -1, 1, 5, 10]);
   });
 
   it('clampMinutes 는 [1,60] 정수로 정규화하고 비수치는 null', () => {

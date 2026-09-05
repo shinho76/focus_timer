@@ -33,22 +33,32 @@
 
 /* ── 테마 프리셋 (spec §3.1) ───────────────────────────────────────── */
 
+/*
+ * v1 디자인 개정 — 전 테마 다크 컨버전스.
+ * 사용자가 두 테마(dark/classic) 렌더 스크린샷에 반복해서 다이얼 판·허브
+ * 자리를 마킹하며 "배경색과 동일한 검정색으로" 요청 — 이번엔 --ft-track 뿐
+ * 아니라 --ft-bg(다이얼 판 전체: 허브 + 바깥 면)까지 대상이었다. 그래서
+ * --ft-bg / --ft-track / --ft-text / --ft-mark 를 6개 테마 블록 전부 같은
+ * 값(검정 판 + 밝은 회색 글자/눈금)으로 통일했다 — 이제 테마마다 달라지는
+ * 건 오직 --ft-gauge(채워진 호 색) 하나뿐이다. 이 값들이 원래 밝은 테마용
+ * (예: classic #14562f 짙은 녹색)으로 골라져 있어서, 검정 배경 위에서는
+ * 대비가 부족해(≥3:1 미달) 잘 안 보인다 — 그래서 classic/purple/pink/sky/
+ * auto-light 의 --ft-gauge(및 대응 스와치)를 검정 배경에서도 도드라지는
+ * 더 밝은 톤으로 같이 올렸다. dark 테마와 auto 의 다크모드 분기는 이미
+ * 밝은 주황이라 그대로 뒀다. 테마 API 계약(각 블록이 자기 변수를 갖는다)은
+ * 그대로 유지했다 — 값만 수렴했을 뿐, 호스트는 여전히 테마별로 개별
+ * 오버라이드할 수 있다.
+ */
+
 /* auto = prefers-color-scheme 추종 (기본값) */
 :host,
 :host([theme="auto"]),
 .ft-theme-auto {
-  --ft-bg: #faf7f2;
-  --ft-gauge: #1f6f4a;
-  /* --ft-track(미채움 게이지)는 6개 테마 전부 순검정으로 고정한다(디자인
-     요청 — 렌더 스크린샷에 두 테마에서 같은 자리를 마킹하며 "배경색과
-     동일한 검정색으로"). 다이얼 판(--ft-bg)은 테마색을 유지하되, 게이지의
-     "남은/미채움" 부분만 위젯 배경과 같은 검정으로 비워 보이게 해서 채워진
-     호(--ft-gauge)만 도드라지게 한다. 값은 6곳 모두 동일하지만, 테마 API
-     계약(각 테마 블록이 자기 --ft-track 을 갖는다)은 그대로 유지했다 —
-     호스트가 원하면 특정 테마만 다시 오버라이드할 수 있다. */
+  --ft-bg: #000000;
+  --ft-gauge: #2bbd6e;
   --ft-track: #000000;
-  --ft-text: #1f1d1a;
-  --ft-mark: #5e5952;
+  --ft-text: #c9c9ce;
+  --ft-mark: #8f8f96;
   --ft-font: inherit;
   --ft-radius: 16px;
   /* 다이얼 판(--ft-bg)이 밝은 테마여도 위젯을 감싸는 "기기 베젤"은 항상
@@ -68,57 +78,57 @@
   :host,
   :host([theme="auto"]),
   .ft-theme-auto {
-    --ft-bg: #131316;
+    --ft-bg: #000000;
     --ft-gauge: #f5a524;
     --ft-track: #000000;
-    --ft-text: #f2f2f2;
-    --ft-mark: #9a9aa2;
+    --ft-text: #c9c9ce;
+    --ft-mark: #8f8f96;
   }
 }
 
 :host([theme="classic"]),
 .ft-theme-classic {
-  --ft-bg: #f4ebdc;
-  --ft-gauge: #14562f;
+  --ft-bg: #000000;
+  --ft-gauge: #22a35d;
   --ft-track: #000000;
-  --ft-text: #2e2a24;
-  --ft-mark: #6b5f4c;
+  --ft-text: #c9c9ce;
+  --ft-mark: #8f8f96;
 }
 
 :host([theme="purple"]),
 .ft-theme-purple {
-  --ft-bg: #efe6fa;
-  --ft-gauge: #6b2fb5;
+  --ft-bg: #000000;
+  --ft-gauge: #9b5de5;
   --ft-track: #000000;
-  --ft-text: #2b2140;
-  --ft-mark: #6b5a85;
+  --ft-text: #c9c9ce;
+  --ft-mark: #8f8f96;
 }
 
 :host([theme="pink"]),
 .ft-theme-pink {
-  --ft-bg: #fbe7ef;
-  --ft-gauge: #b31e5b;
+  --ft-bg: #000000;
+  --ft-gauge: #f1478c;
   --ft-track: #000000;
-  --ft-text: #3a1d28;
-  --ft-mark: #8a5a6c;
+  --ft-text: #c9c9ce;
+  --ft-mark: #8f8f96;
 }
 
 :host([theme="sky"]),
 .ft-theme-sky {
-  --ft-bg: #e4f0fa;
-  --ft-gauge: #0e5c8a;
+  --ft-bg: #000000;
+  --ft-gauge: #229ce0;
   --ft-track: #000000;
-  --ft-text: #16303d;
-  --ft-mark: #4e7186;
+  --ft-text: #c9c9ce;
+  --ft-mark: #8f8f96;
 }
 
 :host([theme="dark"]),
 .ft-theme-dark {
-  --ft-bg: #131316;
+  --ft-bg: #000000;
   --ft-gauge: #f5a524;
   --ft-track: #000000;
-  --ft-text: #f2f2f2;
-  --ft-mark: #9a9aa2;
+  --ft-text: #c9c9ce;
+  --ft-mark: #8f8f96;
 }
 
 /* ── 테마 스와치 색상 (①⑥번 옵션 버튼 미리보기용) ───────────────────────
@@ -126,19 +136,19 @@
  * 테마 블록과 동기화 상태를 유지해야 한다.
  */
 .ft-swatch--auto {
-  --swatch-bg: linear-gradient(135deg, #1f6f4a 50%, #f5a524 50%);
+  --swatch-bg: linear-gradient(135deg, #2bbd6e 50%, #f5a524 50%);
 }
 .ft-swatch--classic {
-  --swatch-bg: #14562f;
+  --swatch-bg: #22a35d;
 }
 .ft-swatch--purple {
-  --swatch-bg: #6b2fb5;
+  --swatch-bg: #9b5de5;
 }
 .ft-swatch--pink {
-  --swatch-bg: #b31e5b;
+  --swatch-bg: #f1478c;
 }
 .ft-swatch--sky {
-  --swatch-bg: #0e5c8a;
+  --swatch-bg: #229ce0;
 }
 .ft-swatch--dark {
   --swatch-bg: #f5a524;
@@ -162,6 +172,112 @@
   border: 1px solid var(--ft-chassis-border);
   padding: 28px 22px 20px;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+/* ── 상단 상태바: 날짜(좌) / 현재 시각(우) ────────────────────────────────
+ * 디자인 요청 — 다이얼과는 별개로, 실제 벽시계를 보여주는 순수 정보 영역.
+ */
+.ft-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ft-chassis-fg, #e8e8ea);
+  opacity: 0.7;
+  letter-spacing: 0.02em;
+  margin-bottom: 10px;
+}
+
+/* ── 명언 로테이터 (1분마다 교체, 디자인 요청) ───────────────────────────── */
+.ft-quote {
+  text-align: center;
+  margin: 0 0 14px;
+  padding: 0 8px;
+  min-height: 2.6em;
+}
+
+.ft-quote-text {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--ft-chassis-fg, #e8e8ea);
+  opacity: 0.85;
+  font-style: italic;
+}
+
+.ft-quote-author {
+  margin: 2px 0 0;
+  font-size: 0.6875rem;
+  color: var(--ft-chassis-fg, #e8e8ea);
+  opacity: 0.5;
+}
+
+/* ── 목표 영역: 다이얼 위 목표 텍스트 + 입력용 플로팅 버튼 (디자인 요청) ── */
+.ft-goal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  min-height: 32px;
+}
+
+.ft-goal-text {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ft-gauge);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.ft-goal-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--ft-chassis-fg, #e8e8ea);
+  background: #000000;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  padding: 6px 12px;
+}
+
+.ft-goal-input:focus-visible {
+  outline: 2px solid var(--ft-gauge);
+  outline-offset: 1px;
+}
+
+.ft-goal-fab {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: var(--ft-gauge);
+  color: #0b0b0e;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  transition: transform 120ms ease, filter 120ms ease;
+}
+
+.ft-goal-fab:hover {
+  filter: brightness(1.08);
+  transform: scale(1.06);
+}
+
+.ft-goal-fab:focus-visible {
+  outline: 2px solid var(--ft-chassis-fg, #e8e8ea);
+  outline-offset: 2px;
+}
+
+.ft-goal-fab-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .ft-stage {

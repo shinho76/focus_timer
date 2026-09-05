@@ -53,6 +53,39 @@ const GAUGE_STYLES = [
   { id: 'sector', label: '파이 차트' },
 ];
 
+/**
+ * 시간의 중요함을 일깨우는 명언 20선 — 웹 검색으로 실제 널리 알려진 출처를
+ * 확인해 고른 것들이다(벤저민 프랭클린, 세네카, 톨스토이, 스티브 잡스,
+ * 피터 드러커 등). 정확한 원저자를 확인할 수 없는 두 항목은 "속담"으로
+ * 표기했다. 1분마다 하나씩 순환한다(디자인 요청).
+ * @type {{text: string, author: string}[]}
+ */
+const TIME_QUOTES = [
+  { text: '시간은 금이다.', author: '벤저민 프랭클린' },
+  { text: '오늘 할 수 있는 일을 내일로 미루지 마라.', author: '벤저민 프랭클린' },
+  { text: '잃어버린 시간은 다시 찾을 수 없다.', author: '벤저민 프랭클린' },
+  { text: '인생을 사랑한다면 시간을 낭비하지 마라, 인생은 시간으로 이루어져 있으니.', author: '벤저민 프랭클린' },
+  { text: '내일 두 개보다 오늘 하나가 낫다.', author: '벤저민 프랭클린' },
+  { text: '시간이 가장 소중하다면, 시간을 낭비하는 것이 가장 큰 사치다.', author: '벤저민 프랭클린' },
+  { text: '급하게 서두르면 큰 낭비를 부른다, 모든 일에 시간을 들여라.', author: '벤저민 프랭클린' },
+  { text: '우리에게 짧은 삶이 주어진 게 아니라, 우리가 삶을 짧게 만드는 것이다.', author: '세네카' },
+  { text: '시간을 아낄 줄 알면 인생은 길다.', author: '세네카' },
+  { text: '사람들은 재산은 아끼면서 정작 시간은 함부로 낭비한다.', author: '세네카' },
+  { text: '시간이 지나야 진실이 드러난다.', author: '세네카' },
+  { text: '시간은 인간이 쓸 수 있는 가장 값진 것이다.', author: '속담' },
+  { text: '지금 이 순간이 가장 중요하다, 우리에게 힘이 있는 유일한 때이므로.', author: '레프 톨스토이' },
+  { text: '일하는 시간과 노는 시간을 뚜렷이 구분하고, 매 순간을 유용하게 써라.', author: '루이자 메이 올콧' },
+  { text: '당신의 시간은 한정되어 있다, 다른 사람의 삶을 사느라 낭비하지 마라.', author: '스티브 잡스' },
+  { text: '시간을 지배하는 법을 배우면, 인생을 지배하게 된다.', author: '속담' },
+  { text: '어제는 지나갔고 내일은 오지 않았다, 우리에게는 오늘만 있다.', author: '틱낫한' },
+  { text: '시간은 우리가 가장 원하지만 가장 함부로 쓰는 것이다.', author: '윌리엄 펜' },
+  { text: '세월은 사람을 기다려주지 않는다.', author: '옛 속담' },
+  {
+    text: '시간은 가장 희소한 자원이다, 이를 관리하지 못하면 다른 무엇도 관리할 수 없다.',
+    author: '피터 드러커',
+  },
+];
+
 /** Real browser time port. `Date.now`/`performance.now` live ONLY here. */
 function realPort() {
   return {
@@ -114,6 +147,19 @@ function buildGaugeIcon(kind) {
       }),
     );
   }
+  return svg;
+}
+
+/** 목표 입력 플로팅 버튼용 "+" 아이콘. 목표가 이미 있으면 CSS 로 회전시켜 "×"(닫기)처럼 보이게 한다. */
+function buildPlusIcon() {
+  const svg = svgEl('svg', {
+    class: 'ft-goal-fab-icon',
+    viewBox: '0 0 20 20',
+    'aria-hidden': 'true',
+    focusable: 'false',
+  });
+  svg.append(svgEl('line', { x1: 10, y1: 3, x2: 10, y2: 17, stroke: 'currentColor', 'stroke-width': 2.4, 'stroke-linecap': 'round' }));
+  svg.append(svgEl('line', { x1: 3, y1: 10, x2: 17, y2: 10, stroke: 'currentColor', 'stroke-width': 2.4, 'stroke-linecap': 'round' }));
   return svg;
 }
 
@@ -181,7 +227,11 @@ class FocusTimer extends HTMLElement {
     this._buildShadow();
     this._wireInput();
     this._wireRuntime();
+    this._wireGoal();
     this._restoreOrInit();
+    this._restoreGoal();
+    this._startClockDisplay();
+    this._startQuoteRotator();
     this._render();
   }
 
@@ -244,6 +294,10 @@ class FocusTimer extends HTMLElement {
         this._render();
       });
     }
+    // 목표 텍스트는 타이머 진행 상태(§7.1 스키마)와 무관한 별도 설정이라
+    // 독립된 키를 쓴다 — persist="off" 여도 목표 자체는 남기고 싶을 수
+    // 있으니(사용자가 별도 요청하지 않는 한) 항상 켠다.
+    this._goalStorage = createStoragePort(window.localStorage, `${this._cfg.storageKey}:goal`);
   }
 
   _buildCore() {
@@ -288,6 +342,40 @@ class FocusTimer extends HTMLElement {
     applyStyles(this.shadowRoot, CSS_TEXT);
 
     const widget = el('div', { class: 'ft-widget', part: 'controls' });
+
+    // 상단 상태바: 왼쪽 오늘 날짜, 오른쪽 현재 시각(24시간, 분까지) — 디자인 요청.
+    const statusBar = el('div', { class: 'ft-status' });
+    this._dateEl = el('span', { class: 'ft-status-date' });
+    this._clockEl = el('span', { class: 'ft-status-clock' });
+    statusBar.append(this._dateEl, this._clockEl);
+    widget.append(statusBar);
+
+    // 명언 로테이터: 1분마다 시간의 중요함을 알려주는 문구를 순환 표시 — 디자인 요청.
+    this._quoteBlock = el('div', { class: 'ft-quote' });
+    this._quoteTextEl = el('p', { class: 'ft-quote-text' });
+    this._quoteAuthorEl = el('p', { class: 'ft-quote-author' });
+    this._quoteBlock.append(this._quoteTextEl, this._quoteAuthorEl);
+    widget.append(this._quoteBlock);
+
+    // 목표 영역: 다이얼(시간) 위에 오늘의 목표를 한 줄 띄운다 + 아래쪽에 입력용
+    // 플로팅 버튼 — 디자인 요청. 목표가 없으면 텍스트는 비워두고 버튼만 보인다.
+    const goalRow = el('div', { class: 'ft-goal' });
+    this._goalTextEl = el('p', { class: 'ft-goal-text', hidden: '' });
+    this._goalFab = el(
+      'button',
+      { type: 'button', class: 'ft-goal-fab', 'aria-label': '오늘의 목표 설정' },
+      buildPlusIcon(),
+    );
+    this._goalInput = el('input', {
+      type: 'text',
+      class: 'ft-goal-input',
+      maxlength: '60',
+      placeholder: '오늘의 목표를 한 가지만 적어보세요',
+      hidden: '',
+      'aria-label': '오늘의 목표 입력',
+    });
+    goalRow.append(this._goalTextEl, this._goalInput, this._goalFab);
+    widget.append(goalRow);
 
     // 다이얼과 리드아웃을 별도의 위치기준 상자(.ft-stage)로 묶는다 — 리드아웃의
     // `position:absolute; inset:0` 은 이 상자를 기준으로 삼아야 다이얼 위에
@@ -505,6 +593,102 @@ class FocusTimer extends HTMLElement {
       this.setAttribute('gauge', e.currentTarget.dataset.gauge);
     };
     this._gaugeButtons.forEach((b) => b.addEventListener('click', this._onGaugeClick));
+  }
+
+  // ---- 상단 상태바(날짜/시각) ------------------------------------------------------
+  /** 오늘 날짜(YY.MM.DD)와 현재 시각(24시간, 분까지)을 1초마다 갱신한다.
+   * 실제 벽시계 값은 이미 주입된 clock 포트(this._port.wall())로만 읽는다 —
+   * index.js 안이라도 Date.now() 를 새로 흩뿌리지 않는다(realPort() 에만 있게). */
+  _startClockDisplay() {
+    const tick = () => {
+      if (this._destroyed) return;
+      const now = new Date(this._port.wall());
+      const yy = String(now.getFullYear()).slice(-2);
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      this._dateEl.textContent = `${yy}.${mm}.${dd}`;
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mi = String(now.getMinutes()).padStart(2, '0');
+      this._clockEl.textContent = `${hh}:${mi}`;
+      this._clockTimerId = this._port.setTimeout(tick, 1000);
+    };
+    tick();
+  }
+
+  // ---- 명언 로테이터 ---------------------------------------------------------------
+  /** TIME_QUOTES 를 1분 간격으로 순환 표시한다(디자인 요청). */
+  _startQuoteRotator() {
+    this._quoteIndex = Math.floor(Math.random() * TIME_QUOTES.length);
+    const tick = () => {
+      if (this._destroyed) return;
+      const q = TIME_QUOTES[this._quoteIndex % TIME_QUOTES.length];
+      this._quoteTextEl.textContent = `"${q.text}"`;
+      this._quoteAuthorEl.textContent = `— ${q.author}`;
+      this._quoteIndex += 1;
+      this._quoteTimerId = this._port.setTimeout(tick, 60_000);
+    };
+    tick();
+  }
+
+  // ---- 목표 입력 --------------------------------------------------------------------
+  /** 플로팅 버튼(+) → 인라인 입력 표시 → Enter/blur 로 저장, Escape 로 취소.
+   * 목표는 "시간(다이얼) 위"의 별도 텍스트로 보여준다(디자인 요청). */
+  _wireGoal() {
+    this._onGoalFabClick = () => {
+      if (this._goalInput.hidden) {
+        this._goalInput.hidden = false;
+        this._goalInput.value = this._goalText || '';
+        this._goalInput.focus();
+        this._goalInput.select();
+      } else {
+        this._goalInput.hidden = true;
+      }
+    };
+    this._goalFab.addEventListener('click', this._onGoalFabClick);
+
+    this._onGoalKeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this._commitGoal(this._goalInput.value);
+        this._goalInput.hidden = true;
+      } else if (e.key === 'Escape') {
+        this._goalInput.hidden = true;
+      }
+    };
+    this._goalInput.addEventListener('keydown', this._onGoalKeydown);
+
+    this._onGoalBlur = () => {
+      if (!this._goalInput.hidden) this._commitGoal(this._goalInput.value);
+      this._goalInput.hidden = true;
+    };
+    this._goalInput.addEventListener('blur', this._onGoalBlur);
+  }
+
+  /** @param {string} text */
+  _commitGoal(text) {
+    const trimmed = (text || '').trim().slice(0, 60);
+    this._goalText = trimmed;
+    if (trimmed) {
+      this._goalTextEl.textContent = trimmed;
+      this._goalTextEl.hidden = false;
+    } else {
+      this._goalTextEl.textContent = '';
+      this._goalTextEl.hidden = true;
+    }
+    if (this._goalStorage) {
+      if (trimmed) this._goalStorage.save({ goal: trimmed });
+      else this._goalStorage.clear();
+    }
+  }
+
+  _restoreGoal() {
+    if (!this._goalStorage) return;
+    const rec = this._goalStorage.load();
+    if (rec && typeof rec.goal === 'string' && rec.goal) {
+      this._goalText = rec.goal;
+      this._goalTextEl.textContent = rec.goal;
+      this._goalTextEl.hidden = false;
+    }
   }
 
   /**
@@ -911,6 +1095,13 @@ class FocusTimer extends HTMLElement {
     if (this._previewBtn) this._previewBtn.removeEventListener('click', this._onPreview);
     (this._themeButtons || []).forEach((b) => b.removeEventListener('click', this._onThemeClick));
     (this._gaugeButtons || []).forEach((b) => b.removeEventListener('click', this._onGaugeClick));
+    if (this._clockTimerId != null) this._port.clearTimeout(this._clockTimerId);
+    if (this._quoteTimerId != null) this._port.clearTimeout(this._quoteTimerId);
+    if (this._goalFab) this._goalFab.removeEventListener('click', this._onGoalFabClick);
+    if (this._goalInput) {
+      this._goalInput.removeEventListener('keydown', this._onGoalKeydown);
+      this._goalInput.removeEventListener('blur', this._onGoalBlur);
+    }
     if (this._dialContainer) resetDial(this._dialContainer);
     if (this._readoutContainer) resetReadout(this._readoutContainer);
   }

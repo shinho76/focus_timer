@@ -32,8 +32,8 @@
  * 25(다이얼 기본값과 겹쳐 굳이 버튼이 필요 없음)와 50 삭제, 40→45로 교체. */
 export const PRESET_MINUTES = Object.freeze([5, 10, 15, 20, 30, 45, 60]);
 
-/** ± 버튼 스텝 (spec §2.3 / §3.3). */
-export const DELTA_STEPS = Object.freeze([-5, -1, 1, 5]);
+/** ± 버튼 스텝 (spec §2.3 / §3.3 — v1 디자인 개정으로 ±10 추가). */
+export const DELTA_STEPS = Object.freeze([-10, -5, -1, 1, 5, 10]);
 
 /**
  * 분 값을 [min,max] 정수로 정규화한다. 숫자가 아니면 null.
