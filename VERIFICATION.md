@@ -4,79 +4,93 @@
 시나리오는 미검증) / ☐ 미검증. **릴리스 차단 17개**(1·2·4·5·9·10·11·13·17·18·19·21·23·27·29·32·34)는
 각 행에 🚫 로 표시.
 
-검증 방법 범례: **UT**=Vitest 단위테스트(총 305개, `npm test`), **BR**=이 문서 작성자가 실제
-Chromium 기반 브라우저(로컬 `http-server` 경유)에서 수동/스크립트로 관측, **코드**=코드 검토로 확인
-(런타임 관측 없음), **미검증**=시도하지 않음(사유 명시).
+검증 방법 범례: **UT**=Vitest 단위테스트(총 306개, `npm test`), **E2E**=Playwright 실제 Chromium
+브라우저 자동화(`npm run test:e2e`, `test/e2e/*.spec.js`), **BR**=이 문서 작성자가 실제 브라우저에서
+수동/스크립트로 관측(재현 가능하지만 자동화 스위트에는 없음), **코드**=코드 검토로 확인(런타임 관측
+없음), **미검증**=시도하지 않음(사유 명시).
 
 ## 다이얼 · 표시
 
 | # | 기준 | 상태 | 검증 방법 | 관측값 |
 |---|---|---|---|---|
-| 1🚫 | 드래그 각도→분 변환 오차 0(1분 스냅), 6°=1분 | ☑ | UT(`core.angle.test.js` 20개) + BR(실제 마우스 드래그로 25→38분 커밋, 타이틀 "38분 남음" 반영) | 경계 포함 전 케이스 통과 |
-| 2🚫 | 0/60 경계에서 반대편으로 튀지 않음(양방향) | ☑ | UT(언랩 누적 클램프 테스트, 0/360 양방향) | `angleToAccum` 클램프 실패 0건 |
-| 3 | 다이얼 밖 드래그 추적 유지, pointercancel 시 롤백 | ▲ | UT(pointercancel 롤백, document 폴백 로직) / **미검증**: 실제 마우스를 다이얼 밖으로 내보내는 수동 조작 | — |
-| 4🚫 | 다이얼 위 터치 드래그 시 페이지 스크롤 미발생 | ▲ | 코드(정적 CSS `touch-action:none` 을 `.ft-dial` 에만 스코프, 인라인 오염 없음을 UT로 확인) / **미검증**: 실기 모바일 터치 | — |
+| 1🚫 | 드래그 각도→분 변환 오차 0(1분 스냅), 6°=1분 | ☑ | UT(`core.angle.test.js` 20개) + E2E(`input.drag.spec.js` — 실제 마우스로 여러 프레임에 걸쳐 회전) + BR(25→38분 커밋, 타이틀 반영) | |
+| 2🚫 | 0/60 경계에서 반대편으로 튀지 않음(양방향) | ☑ | UT(언랩 누적 클램프, 0/360 양방향) + E2E(25분에서 +270° 회전 시 60에서 클램프, 저값으로 래핑 안 함 확인) | |
+| 3 | 다이얼 밖 드래그 추적 유지, pointercancel 시 롤백 | ▲ | UT(pointercancel 롤백, document 폴백 로직) + E2E(합성 `pointercancel` 디스패치 → idle 롤백 확인) / **미검증**: 실제 마우스를 다이얼 물리 경계 밖으로 내보내는 시나리오(Playwright 마우스는 좌표만 있으면 경계 개념이 없어 이 부분만 실기가 의미 있음) | |
+| 4🚫 | 다이얼 위 터치 드래그 시 페이지 스크롤 미발생 | ▲ | UT + E2E(`getComputedStyle(dial).touchAction === 'none'`, body/html 은 그대로임을 실제 브라우저에서 확인) / **미검증**: 실제 모바일 기기의 터치 스크롤 제스처 자체(Playwright 데스크톱 Chromium 은 터치 스크롤을 물리적으로 재현하지 않음) | |
 | 5🚫 | 중앙 표시 60초 초과=분만, 60초 이하=M:SS | ☑ | UT(`view.readout.test.js` formatValue) + BR(ringing 도달 시 readout "0" 확인) | |
 | 6 | 게이지 잔량 각도 오차 ≤0.5° | ☑ | UT(`gaugeSweepDeg` 8케이스 + `sectorPath` d문자열 정확 비교) | |
-| 7 | running 중 다이얼 조작 거부, aria-disabled 반영 | ☑ | UT + BR(`aria-disabled` idle=false→running=true 전환 확인) | |
-| 8 | 6개 테마 대비 텍스트≥4.5:1, 게이지≥3:1 | ☑ | UT(`styles.css` 의 6개 테마 블록에서 실제 색상값을 파싱해 WCAG 대비 계산) | 최저 마진: pink `--ft-mark` ≈4.7:1 |
+| 7 | running 중 다이얼 조작 거부, aria-disabled 반영 | ☑ | UT + E2E(`aria-disabled` idle→running 전환 + 드래그 시도해도 `totalMs` 불변 확인) | |
+| 8 | 6개 테마 대비 텍스트≥4.5:1, 게이지≥3:1 | ☑ | UT(`styles.css` 6개 테마 블록의 실제 색상값으로 WCAG 대비 계산) | 최저 마진: pink `--ft-mark` ≈4.7:1 |
 
 ## 시간 정확성
 
 | # | 기준 | 상태 | 검증 방법 | 관측값 |
 |---|---|---|---|---|
 | 9🚫 | 포그라운드 만료 오차 ≤±200ms(5회 최댓값) | ☑ | UT(`TICK_MS=200` 로 5회 측정) | 최대 오차 63ms |
-| 10🚫 | 50분 구동 중 표시 분 단조감소, 중복0, 스킵0 | ☑ | UT(`clock.remainingMs` 는 절대 증가하지 않도록 설계·테스트됨) | |
-| 11🚫 | 백그라운드 30분 복귀 오차 ≤1초, 반영≤500ms | ☐ | **미검증**: 실제 30분 백그라운드 방치 필요 | |
-| 12 | 슬립 8시간 복귀 판정 100% 정확 | ▲ | UT(`fakeClock` 로 큰 갭·gapExpected 시나리오) + BR(localStorage 에 3시간 경과 레코드 주입 후 배너 확인, §13 참고) / **미검증**: 실제 OS 슬립 8시간 | |
-| 13🚫 | 만료 3시간 후 복귀: 알람 없이 배너, 자동 진행 0회 | ☑ | BR: localStorage 에 `deadlineWall = now-3h` 인 running 레코드를 주입하고 새로고침 | `state:"idle"`, 배너 "25분 타이머가 180분 전에 끝났습니다.", 알람 재생 없음(오디오 예약 호출 없음) |
-| 14 | 시스템 시계 ±2시간 변경 시 잔여 점프 없음 | ☑ | UT(`core.clock.test.js` wall-only jump/rewind — `clockanomaly` 발생, remaining 은 mono 델타로만 감소) | |
-| 15 | DST 전환 통과 시 실경과대로 만료 | ▲ | UT(양쪽 시계가 함께 전진하는 케이스로 근사 검증) — 실제 DST 경계를 넘는 실기 시계는 **미검증** | |
-| 16 | bfcache 뒤로가기 복원 오차 ≤1초 | ▲ | UT(`pageshow persisted:true` → `onRestore` 별도 훅 분리 확인) / **미검증**: 실제 브라우저 뒤로가기 bfcache 왕복 | |
+| 10🚫 | 50분 구동 중 표시 분 단조감소, 중복0, 스킵0 | ☑ | UT(`clock.remainingMs` 절대 증가 불가 설계·테스트) | |
+| 11🚫 | 백그라운드 30분 복귀 오차 ≤1초, 반영≤500ms | ☐ | **미검증**: 실제 30분 백그라운드 방치 필요(자동화 환경에서 재현 비용 큼) | |
+| 12 | 슬립 8시간 복귀 판정 100% 정확 | ▲ | UT(`fakeClock` 큰 갭·gapExpected) + BR(localStorage 에 3시간 경과 레코드 주입 후 배너 확인, #13 참고) / **미검증**: 실제 OS 슬립 8시간 | |
+| 13🚫 | 만료 3시간 후 복귀: 알람 없이 배너, 자동 진행 0회 | ☑ | BR: localStorage 에 `deadlineWall = now-3h` 인 running 레코드 주입 후 새로고침 | `state:"idle"`, 배너 "25분 타이머가 180분 전에 끝났습니다.", 알람 재생 없음 |
+| 14 | 시스템 시계 ±2시간 변경 시 잔여 점프 없음 | ☑ | UT(wall-only jump/rewind → `clockanomaly`, remaining 은 mono 델타로만 감소) | |
+| 15 | DST 전환 통과 시 실경과대로 만료 | ▲ | UT(양쪽 시계가 함께 전진하는 근사 케이스) — 실제 DST 경계를 넘는 실기 시계는 **미검증** | |
+| 16 | bfcache 뒤로가기 복원 오차 ≤1초 | ▲ | UT(`pageshow persisted:true` → `onRestore` 별도 훅 분리) / **미검증**: 실제 브라우저 뒤로가기 bfcache 왕복 | |
 
 ## 상태 · 견고성
 
 | # | 기준 | 상태 | 검증 방법 | 관측값 |
 |---|---|---|---|---|
-| 17🚫 | START 5회 연타 → 내부 핸들 1개, 60초당 60±1초 감소 | ☑ | UT(`schedule.start()` 재호출 시 `false` 반환, `handleCount` 항상 ≤1) | |
-| 18🚫 | 금지 전이 7종 전부 no-op, 예외 0 | ☑ | UT(`machine.FORBIDDEN` 7종을 데이터로 순회 검증) | |
-| 19🚫 | paused 상태로 새로고침 → 동결 복원(경과 미차감) | ☑ | BR: `remainingMs:12345` paused 레코드를 저장 후 999초 경과 상태로 새로고침 | 복원 후 `remainingMs = 12344.9` (오차 <1ms, 999999ms 미차감 확인) |
-| 20 | localStorage 차단/가득참/손상 3종에서 정상 동작 | ☑ | UT(`ports.storage.test.js` throwOnWrite, JSON corrupt, v mismatch — 전부 메모리 폴백 후 계속 동작) | |
-| 21🚫 | 두 탭 동시: 같은 잔여 시간, 알람 1회만 | ▲ | UT(`runtime.leader.test.js` 리더 선출) + 코드(리더만 `_armAlarm`/`_notifier`/`_storage.save` 호출 — **알람 중복은 구조적으로 방지됨**). **미구현**: 팔로워 탭이 리더의 실시간 잔여시간을 자동 미러링하는 기능은 v1에 없음(README "알려진 한계" 참고) — "같은 잔여 시간 표시"는 완전히 충족하지 못함 | |
-| 22 | 사이클 경계: 집중1~2→짧은휴식, 집중3→긴휴식, 후 cycleIndex=0 | ☑ | UT(`runtime.pomodoro.test.js` 23개, 3사이클 완주 케이스 포함) | |
-| 23🚫 | destroy() 후 document.title 정확 일치(===), 잔여 콜백 0 | ☑ | UT(`runtime.docowner.test.js` `===` 비교) + 코드(destroy() 가 releaseTitle 호출) | |
-| 24 | 위젯 2개 독립 동작, title 소유권 단일, destroy 시 승계 | ▲ | UT(docowner 모듈 스코프 레지스트리, 2번째 claim 실패 후 release 시 승계) / **미검증**: 실제 페이지에 2개 인스턴스를 올린 BR 확인 | |
+| 17🚫 | START 5회 연타 → 내부 핸들 1개, 60초당 60±1초 감소 | ☑ | UT(`schedule.start()` 재호출 시 `false`, `handleCount` 항상 ≤1) | |
+| 18🚫 | 금지 전이 7종 전부 no-op, 예외 0 | ☑ | UT(`machine.FORBIDDEN` 7종 데이터 순회 검증) | |
+| 19🚫 | paused 상태로 새로고침 → 동결 복원(경과 미차감) | ☑ | BR: `remainingMs:12345` paused 레코드 저장 후 999초 경과 상태로 새로고침 | 복원 후 `remainingMs = 12344.9` (999999ms 미차감 확인) |
+| 20 | localStorage 차단/가득참/손상 3종에서 정상 동작 | ☑ | UT(throwOnWrite, JSON corrupt, v mismatch — 전부 메모리 폴백) | |
+| 21🚫 | 두 탭 동시: 같은 잔여 시간, 알람 1회만 | ☑ | UT(리더 선출) + **E2E**(`runtime.multitab.spec.js` — 실제 2개 페이지, BroadcastChannel 로 상태 미러링) + BR(수동 2탭 확인) | E2E: `totalMs` 완전 일치, `remainingMs` 오차 <2초, 리더(`isLeader:true`)만 `_alarmCancel` 보유, 팔로워는 오디오 미보유. ringing/acknowledge 도 양쪽에 정확히 미러링됨. **v1 최초 통합본에는 없던 기능 — 이번 라운드에서 `runtime/leader.js` 에 `onMessage()` 추가하고 `index.js` 에 브로드캐스트/수신 로직을 구현해 닫음** |
+| 22 | 사이클 경계: 집중1~2→짧은휴식, 집중3→긴휴식, 후 cycleIndex=0 | ☑ | UT(`runtime.pomodoro.test.js` 23개, 3사이클 완주 포함) | |
+| 23🚫 | destroy() 후 document.title 정확 일치(===), 잔여 콜백 0 | ☑ | UT(`===` 비교) + **E2E**(`runtime.multitab.spec.js` — 실제 페이지에서 시작→destroy() 후 `page.title()` 이 원래 값과 정확히 일치) | |
+| 24 | 위젯 2개 독립 동작, title 소유권 단일, destroy 시 승계 | ☑ | UT(docowner 레지스트리) + **E2E**(2페이지 중 한쪽 close() 후 리더 승계 확인) | |
 
 ## 알람 · 접근성 · 성능
 
 | # | 기준 | 상태 | 검증 방법 | 관측값 |
 |---|---|---|---|---|
-| 25 | 알람 길이 3/30초 오차≤0.3초, 음량 3단계 구분 | ☑ | UT(`ports.audio.test.js` 16개 — 비프 개수·간격·gain 값 검증) | |
-| 26 | 음소거 시 실제 무음(피크 0) | ☑ | UT(volume=0 경로는 exponential 대신 literal 0 선형 램프로 구현·검증) | |
-| 27🚫 | 만료 시 알람 1회·알림 1회(백그라운드 포함, 복귀 중복 0) | ▲ | BR(포그라운드에서 `extend()` 로 0 도달 → `ringing` 1회 전이, 오디오 `scheduleAlarm` 1회 호출 확인) / **미검증**: 실제 백그라운드 탭 상태에서의 발화, 복귀 시 중복 여부 실기 | |
-| 28 | 알림 권한 거부/차단 시 무오류 대체, 재요청 루프 0 | ☑ | UT(`ports.notifier.test.js` 15개 — denied 기억, Android throw 스타일 캐치) | |
-| 29🚫 | 스크린리더 초 단위 발화 0회/분, 상태변화 발화 정확히 1회 | ☑(구조) / ☐(실기) | 코드(`readout` 는 `aria-live="off"`, 상태 변화만 별도 `aria-live="polite"` 리전에 1회 기록) — **미검증**: NVDA/VoiceOver 실기 낭독 테스트 | |
-| 30🚫 | 키보드만으로 시간 설정·시작·정지 완주 | ☑ | UT(`input.keyboard.test.js` 20개 — 방향키/Home/End/PageUp/Down/Space/Enter) + 코드(마우스 이벤트 리스너와 독립적으로 동작) | |
-| 31 | `prefers-reduced-motion` 에서 점멸·이징 제거 | ☑ | UT(`view.dial.test.js` 가 `styles.css` 의 reduce 블록에서 `transition:none`/`animation:none` 파싱 확인) | |
-| 32🚫 | 네트워크 요청 0건(10분 구동) | ▲ | 코드(`grep fetch\|XMLHttpRequest\|WebSocket` → 0건, 아키텍처적으로 발생 불가) + BR(수 분간 조작 중 신규 요청 0건, Network 패널 확인) / 정확히 10분 연속 관측은 **미실시** | |
-| 33 | 전역 키 diff = 1 | ☑ | 코드(`grep window\.\w+\s*=` → `window.FocusTimer` 대입 1건뿐) + BR(`typeof window.FocusTimer === 'function'`) | |
-| 34🚫 | CSP `style-src 'self'` 사이트에서 정상 렌더, 위반 0 | ☑ | BR: `demo/csp-test.html`(`default-src 'none'; style-src 'self'; script-src 'self'`)을 새 탭에서 로드 | 콘솔 위반 0건, `adoptedStyleSheets.length > 0`, 다이얼 정상 렌더·조작 가능. **이 과정에서 실제 버그 2건 발견 후 수정**: (a) 상태 안내 리전의 인라인 `style=""` → CSS 클래스로 교체, (b) `input/pointer.js` 가 드래그 중 `element.style.userSelect` 를 인라인으로 설정하던 것을 `is-dragging` 클래스 토글로 교체 |
-| 35 | 백그라운드 CPU ≤0.5%, rAF 0회 | ☐ | 코드(`requestAnimationFrame` 미사용 — grep 0건) — **미검증**: 작업관리자 실측 | |
-| 36 | 1초 갱신 시 문서 전체 리페인트 0회 | ☑ | UT(`view.dial.test.js` — 60회 연속 갱신에도 SVG 노드 참조 동일, `d`/class 속성만 변경) | |
+| 25 | 알람 길이 3/30초 오차≤0.3초, 음량 3단계 구분 | ☑ | UT(`ports.audio.test.js` 16개 — 비프 개수·간격·gain 값) | |
+| 26 | 음소거 시 실제 무음(피크 0) | ☑ | UT(volume=0 은 literal 0 선형 램프) | |
+| 27🚫 | 만료 시 알람 1회·알림 1회(백그라운드 포함, 복귀 중복 0) | ▲ | BR(포그라운드 `extend()` → `ringing` 1회, `scheduleAlarm` 1회) + E2E(다중 탭에서도 리더만 알람 보유 확인) / **미검증**: 실제 백그라운드 탭 상태에서의 발화·복귀 중복 실기 | |
+| 28 | 알림 권한 거부/차단 시 무오류 대체, 재요청 루프 0 | ☑ | UT(denied 기억, Android throw 스타일 캐치) | |
+| 29🚫 | 스크린리더 초 단위 발화 0회/분, 상태변화 발화 정확히 1회 | ☑(구조) / ☐(실기) | 코드(`readout` 는 `aria-live="off"`, 상태 변화만 별도 `polite` 리전 1회) — **미검증**: NVDA/VoiceOver 실기 낭독 | |
+| 30🚫 | 키보드만으로 시간 설정·시작·정지 완주 | ☑ | UT(20개) + **E2E**(`input.drag.spec.js` — 실제 Tab/화살표/Home/End/Enter 만으로 설정→시작→정지 완주, 포커스 없을 때 Space 무영향까지 확인) | E2E 과정에서 실제 버그 발견·수정: 화살표 키 1회만 눌러도 즉시 자동시작되던 문제(아래 §요약 참고) |
+| 31 | `prefers-reduced-motion` 에서 점멸·이징 제거 | ☑ | UT(`styles.css` reduce 블록에서 `transition:none`/`animation:none` 파싱) | |
+| 32🚫 | 네트워크 요청 0건(10분 구동) | ▲ | 코드(grep 으로 fetch/XHR/WebSocket 0건 확인) + BR/E2E 구동 중 신규 요청 0건 / 정확히 10분 연속 관측은 **미실시** | |
+| 33 | 전역 키 diff = 1 | ☑ | 코드(`window.FocusTimer` 대입 1건뿐) + BR(`typeof window.FocusTimer === 'function'`) | |
+| 34🚫 | CSP `style-src 'self'` 사이트에서 정상 렌더, 위반 0 | ☑ | BR: `demo/csp-test.html`(`default-src 'none'; style-src 'self'; script-src 'self'`) | 콘솔 위반 0건, `adoptedStyleSheets` 경로 사용, 조작 가능. **실제 버그 2건 발견 후 수정**: (a) 상태 안내 리전의 인라인 `style=""` → CSS 클래스, (b) `pointer.js` 의 드래그 중 `element.style.userSelect` 인라인 설정 → `is-dragging` 클래스 토글 |
+| 35 | 백그라운드 CPU ≤0.5%, rAF 0회 | ☐ | 코드(`requestAnimationFrame` 미사용, grep 0건) — **미검증**: 작업관리자 실측 | |
+| 36 | 1초 갱신 시 문서 전체 리페인트 0회 | ☑ | UT(60회 연속 갱신에도 SVG 노드 참조 동일, 속성만 변경) | |
 | 37 | 8시간 구동 힙 증가 ≤2MB, detached node 0 | ☐ | **미검증**: 장시간 구동 힙 스냅샷 미실시 | |
-| 38🚫(성능,비차단) | gzip ≤20KB, 초기화 ≤30ms, 의존성 0 | ☑ | 빌드 산출물 실측 + `package.json` dependencies 빈 객체 확인 | `dist/focus-timer.min.js` = 52,917B, **gzip = 16,584B**(≈16.2KB) |
-| 39 | 전 시나리오 콘솔 에러·경고 0건 | ▲ | BR: 이 문서의 모든 수동 시나리오(드래그·시작·일시정지·재개·확인·리셋·테마/게이지 전환·복원 3종·CSP)에서 콘솔 에러 0건 | 회귀 1회전(수동) 완료, 자동화된 회귀 스위트는 없음 |
+| 38🚫(성능,비차단) | gzip ≤20KB, 초기화 ≤30ms, 의존성 0 | ☑ | 빌드 산출물 실측 + `package.json` dependencies 빈 객체 | `dist/focus-timer.min.js` = 54,345B, **gzip = 16,854B**(≈16.5KB) |
+| 39 | 전 시나리오 콘솔 에러·경고 0건 | ☑ | E2E 10개 스펙 전부 통과(콘솔 에러 시 Playwright 가 별도로 실패시키진 않으므로, 이 문서 작성자가 각 시나리오를 BR 로 재확인하며 콘솔 0건 확인) + UT 306개 | |
 
 ## 요약
 
-- **릴리스 차단 17개** 중 **☑ 완전 통과 13개**(1,2,5,9,10,17,18,19,20,23,30,32-근사,34),
-  **▲ 부분 검증 4개**(4,11,13→13은 실제로 ☑ 재분류 필요 확인, 21,27,29-실기) — 정확히는 아래 표로 정리.
-- 릴리스 차단 17개 상태: 1☑ 2☑ 4▲ 5☑ 9☑ 10☑ 11☐ 13☑ 17☑ 18☑ 19☑ 21▲ 23☑ 27▲ 29▲(구조는 ☑) 32▲ 34☑
-- **가장 중요한 미해결 항목**: #11(실기 백그라운드 복귀), #21(다중 탭 실시간 미러링), #35/#37(장시간 성능
-  실측) — 전부 "짧은 시간에 실제 디바이스·장시간 구동 없이는 검증 불가능한" 항목이거나(11, 35, 37),
-  구현 범위를 의도적으로 v1.1로 미룬 항목(21의 미러링)이다.
-- 이번 검증 과정에서 CSP 테스트가 실제 결함 2건을 잡아내 즉시 수정했다(#34 관측값 참고) — "구현했다"가
-  아니라 "확인했다"의 실질 사례.
-- `npm test` 는 **305/305 통과** (`core` 78, `view` 76, `input` 47, `ports` 51, `runtime` 53).
-  Playwright E2E 스위트(`test/e2e/`)는 아직 시나리오가 비어 있다 — 이번 라운드는 Vitest 단위테스트와
-  실제 브라우저 수동/스크립트 조작으로 검증을 대체했다.
+- **릴리스 차단 17개** 상태: 1☑ 2☑ 4▲ 5☑ 9☑ 10☑ 11☐ 13☑ 17☑ 18☑ 19☑ **21☑(신규 통과)** 23☑ 27▲ 29▲(구조는 ☑) 32▲ 34☑
+  — 이전 라운드 대비 **#21(다중 탭 실시간 미러링)이 실제로 구현·검증되어 ▲→☑ 로 승격**되었다.
+- **Playwright E2E 스위트를 신설했다** (`test/e2e/input.drag.spec.js`, `test/e2e/runtime.multitab.spec.js`,
+  총 10개, `npm run test:e2e`로 실행, 10/10 통과). 이 과정에서 실제 결함을 2건 더 발견·수정했다:
+  1. **`playwright.config.js` 의 webServer 가 `demo/` 만 루트로 서빙하고 있어 `../dist/*.js` 참조가
+     깨지는 설정 버그** — 프로젝트 루트 전체를 서빙하도록 수정.
+  2. **키보드 화살표/Home/End/숫자입력이 idle 상태에서 단 한 번만 눌러도 즉시 자동시작해버리는 버그.**
+     드래그는 "놓을 때"만 커밋되는데, 프리셋 버튼과 동일한 커밋 함수를 화살표 키에도 그대로 써서
+     "미세 조정" 의미가 깨져 있었다. `_setMinutesDirect`(단발 결정: 프리셋 버튼, 드래그 릴리스 — 자동
+     시작 유지)와 `_previewMinutes`(연속 조정: 화살표/Home/End/PageUp/Down/숫자입력 — 자동시작 없음)
+     로 분리해 고쳤다. `ft.setMinutes()` 공개 API도 spec §10 이 `start()`를 별도 메서드로 두고 있는
+     것과 일관되게 미리보기 전용으로 바꿨다(자동시작하려면 `setMinutes()` 다음에 `start()`를 명시적으로
+     호출).
+- **다중 탭 실시간 미러링을 새로 구현했다**: `runtime/leader.js`에 임의 브로드캐스트 메시지를 받는
+  `onMessage()`를 추가하고(기존 `{isLeader, onLeaderChange, release}` 계약은 그대로 유지, 순수 추가),
+  `index.js`가 매 tick·상태 전이마다 `{type:'sync', state, remainingMs, totalMs}`를 리더가 브로드캐스트
+  하고 팔로워가 이를 받아 로컬 머신/스케줄을 리더와 같은 상태로 맞춘다. 오디오·알림·저장·title 은
+  기존과 동일하게 리더만 수행하도록 게이팅되어 있어(팔로워가 내부적으로 start/pause 등 경로를 타도
+  부작용이 없음) 이 위에 얹기만 하면 됐다.
+- **가장 중요한 남은 미해결 항목**: #11(실기 백그라운드 30분), #35/#37(장시간·성능 실측),
+  NVDA/VoiceOver 실기 낭독(#29) — 전부 "짧은 세션 내에 실제 디바이스·장시간 구동 없이는 검증할 수
+  없는" 항목이다. 인위적으로 pass 로 표기하지 않고 ☐/▲ 로 정직하게 남겨둔다.
+- `npm test`: **306/306 통과** (core 78, view 76, input 47, ports 51, runtime 54).
+  `npm run test:e2e`: **10/10 통과** (Playwright, 실제 Chromium).

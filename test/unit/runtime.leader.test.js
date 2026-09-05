@@ -147,6 +147,29 @@ describe('createLeaderElection — Web Locks path', () => {
     expect(cb).toHaveBeenCalledWith(false, expect.objectContaining({ via: 'release' }));
   });
 
+  it('onMessage mirrors arbitrary broadcasts between instances (integration state-sync hook)', async () => {
+    const locks = createFakeLocks();
+    const BC = makeBroadcastChannelClass();
+    const a = createLeaderElection(locks, 'ft-msg', { BroadcastChannelCtor: BC, instanceId: 'A' });
+    const b = createLeaderElection(locks, 'ft-msg', { BroadcastChannelCtor: BC, instanceId: 'B' });
+    await flush();
+
+    const seenByB = [];
+    const off = b.onMessage((data) => seenByB.push(data));
+    a.post({ type: 'sync', remainingMs: 12345 });
+    expect(seenByB).toContainEqual(
+      expect.objectContaining({ instanceId: 'A', type: 'sync', remainingMs: 12345 }),
+    );
+
+    off();
+    seenByB.length = 0;
+    a.post({ type: 'sync', remainingMs: 1 });
+    expect(seenByB).toEqual([]); // unsubscribed
+
+    a.release();
+    b.release();
+  });
+
   it('works without any BroadcastChannel implementation', async () => {
     const locks = createFakeLocks();
     const el = createLeaderElection(locks, 'ft-nobc', { BroadcastChannelCtor: undefined });

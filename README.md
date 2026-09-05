@@ -89,11 +89,11 @@ Chromium/Firefox/Safari 최신 버전. `AudioContext`/`Notification`/`navigator.
   `capabilities.notification === false` 로 감지 가능.
 - **Android Chrome** 은 `new Notification()` 이 던진다 — 자동으로 잡아서 `null` 을 반환하고
   인페이지 배너로 대체하지만, 데스크톱과 달리 실제 OS 알림은 뜨지 않는다.
-- **다중 탭 실시간 상태 미러링은 v1에 없다.** 리더 선출(Web Locks → localStorage 하트비트 →
-  단일 탭 폴백)과 "리더만 알람·알림·스토리지 쓰기·title 을 담당" 게이팅은 구현되어 있어
-  **알람이 두 번 울리지는 않지만**, 팔로워 탭이 리더의 실시간 잔여 시간을 자동으로 화면에
-  반영하지는 않는다(각 탭은 자신이 로드될 때 저장소를 한 번 읽어 복원할 뿐). 완전한 실시간
-  미러링(BroadcastChannel 로 tick 을 브로드캐스트)은 v1.1 후보.
+- **다중 탭**: 리더 선출(Web Locks → localStorage 하트비트 → 단일 탭 폴백), "리더만
+  알람·알림·스토리지 쓰기·title 을 담당" 게이팅, 그리고 팔로워 탭이 리더의 상태를 실시간
+  미러링(BroadcastChannel)하는 것까지 모두 구현되어 있다 — 두 탭을 열어두면 항상 같은 잔여
+  시간을 보여주고 알람은 리더 탭에서만 한 번 울린다. `test/e2e/runtime.multitab.spec.js` 로
+  검증됨.
 - **뽀모도로 모드는 API/로직 레이어만 통합되어 있고, 전용 컨트롤 UI(휴식 건너뛰기 버튼,
   사이클 표시기 등)는 데모에 없다.** `mode="pomodoro"` 속성과 `skip()` 메서드로 코드 레벨
   조작은 가능하다.
@@ -107,6 +107,9 @@ Chromium/Firefox/Safari 최신 버전. `AudioContext`/`Notification`/`navigator.
 ## 테스트
 
 ```bash
-npm test          # Vitest 단위 테스트 (305개, core/view/input/ports/runtime 전부)
-npm run test:e2e  # Playwright — 아직 시나리오 없음(빈 스위트, VERIFICATION.md 참고)
+npm test          # Vitest 단위 테스트 (306개, core/view/input/ports/runtime 전부)
+npx playwright install chromium  # 최초 1회
+npm run test:e2e  # Playwright — 실제 브라우저 드래그·키보드·다중 탭 시나리오 (10개)
 ```
+
+자세한 39개 수용 기준별 검증 상태와 관측값은 [`VERIFICATION.md`](VERIFICATION.md) 참고.

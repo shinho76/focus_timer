@@ -204,6 +204,7 @@ class FocusTimer extends HTMLElement {
         this._dispatch('ft:tick', { remainingMs, totalMs: this._totalMs });
         this._render();
         this._maybeSave();
+        this._broadcastSync();
       }),
     );
     this._unsubs.push(
@@ -328,18 +329,24 @@ class FocusTimer extends HTMLElement {
       min: 1,
       max: this._cfg.maxMinutes,
       disabled: () => this._machine.state !== 'idle' && this._machine.state !== 'setting',
+      // 화살표/Home/End/PageUp/Down 은 전부 "연속 미세 조정" — 절대 자동시작하지
+      // 않는다(_previewMinutes). 시작은 Space/Enter(onActivate→toggle) 또는
+      // 프리셋 버튼처럼 명시적인 "단발 결정" 행동에서만 일어난다.
       onDelta: (d) => this._adjustMinutes(d),
-      onSet: (m) => this._setMinutesDirect(m),
+      onSet: (m) => this._previewMinutes(m),
       onActivate: () => this.toggle(),
     });
 
+    // 프리셋 버튼은 드래그 릴리스와 동등한 "단발 결정" — autostart 정책을 따른다.
     this._presetDetach = this._presetButtons.map((b) =>
       attachPreset(b, Number(b.dataset.minutes), (m) => this._setMinutesDirect(m)),
     );
     this._deltaDetach = this._deltaButtons.map((b) =>
       attachDelta(b, Number(b.dataset.delta), (d) => this._adjustMinutes(d)),
     );
-    this._numberDetach = attachNumberInput(this._numberInput, (m) => this._setMinutesDirect(m), {
+    // 숫자 입력은 타이핑 중(input)에도 콜백이 오므로 미세 조정과 동일하게 다룬다
+    // — 자릿수를 입력하는 도중에 자동시작되면 안 된다.
+    this._numberDetach = attachNumberInput(this._numberInput, (m) => this._previewMinutes(m), {
       min: 1,
       max: this._cfg.maxMinutes,
     });
@@ -352,6 +359,10 @@ class FocusTimer extends HTMLElement {
     this._previewBtn.addEventListener('click', this._onPreview);
   }
 
+  /**
+   * "단발성 결정" 입력(프리셋 버튼 클릭)용 — 값을 커밋하고, 드래그를 놓았을 때와
+   * 동등하게 autostart-on-release 정책을 따른다(spec §3.3 "동등한 병렬 수단").
+   */
   _setMinutesDirect(minutes) {
     const state = this._machine.state;
     if (state !== 'idle' && state !== 'setting') return;
@@ -359,12 +370,26 @@ class FocusTimer extends HTMLElement {
     this._selectedMinutes = snapMinutes(minutes, 1);
     this._dispatch('ft:set', { minutes: this._selectedMinutes });
     if (this._cfg.autostartOnRelease && state === 'idle') {
-      // 프리셋/숫자 입력도 드래그와 동등 지위 — 자동 시작 정책을 그대로 따른다.
       if (this._machine.send('dialup')) {
         this._startTimer(this._selectedMinutes);
         return;
       }
     }
+    this._render();
+  }
+
+  /**
+   * "연속 미세 조정" 입력(키보드 화살표/Home/End/PageUp/Down, 숫자 입력, ±버튼)용
+   * — 드래그 중 onAngleChange 와 동등하게 값만 갱신하고 절대 자동 시작하지
+   * 않는다. 화살표를 한 번 눌렀다고 타이머가 바로 도는 것은 "미세 조정"의
+   * 의미와 맞지 않는다 — 시작은 별도로(Space/Enter, 시작 버튼, 또는 프리셋).
+   */
+  _previewMinutes(minutes) {
+    const state = this._machine.state;
+    if (state !== 'idle' && state !== 'setting') return;
+    if (state === 'idle') this._machine.send('dialdown');
+    this._selectedMinutes = snapMinutes(minutes, 1);
+    this._dispatch('ft:set', { minutes: this._selectedMinutes });
     this._render();
   }
 
@@ -375,7 +400,7 @@ class FocusTimer extends HTMLElement {
       return;
     }
     const next = Math.max(1, Math.min(this._cfg.maxMinutes, this._selectedMinutes + delta));
-    this._setMinutesDirect(next);
+    this._previewMinutes(next);
   }
 
   // ---- 런타임 배선 (라이프사이클/리더/타이틀) --------------------------------------
@@ -402,7 +427,70 @@ class FocusTimer extends HTMLElement {
       lockName: `${this._cfg.storageKey}:leader`,
       storageKey: `${this._cfg.storageKey}:leader-hb`,
     });
-    this._leaderOff = this._leader.onLeaderChange(() => this._render());
+    this._leaderOff = this._leader.onLeaderChange(() => {
+      this._render();
+      this._broadcastSync(); // 새로 리더가 된 탭이 즉시 현재 상태를 알린다
+    });
+    // 팔로워는 리더의 상태를 그대로 미러링한다 (spec §11 기준 21: 모든 탭이
+    // 같은 잔여 시간을 보인다). 알람·알림·저장은 여전히 리더만 한다 — 아래
+    // _applyRemoteSync 가 부르는 경로들은 전부 isLeader 로 게이팅되어 있다.
+    this._leaderMsgOff = this._leader.onMessage((data) => {
+      if (data && data.type === 'sync' && !this.isLeader) this._applyRemoteSync(data);
+    });
+  }
+
+  /** 리더일 때만 현재 상태를 다른 탭에 브로드캐스트한다. */
+  _broadcastSync() {
+    if (!this._leader || !this.isLeader) return;
+    this._leader.post({
+      type: 'sync',
+      state: this._machine.state,
+      remainingMs: this.remainingMs,
+      totalMs: this._totalMs,
+    });
+  }
+
+  /**
+   * 팔로워 전용: 리더가 브로드캐스트한 상태를 로컬 머신/스케줄에 그대로
+   * 반영한다. 여기서 호출하는 start/pause/resume/expire 경로는 전부
+   * isLeader 게이트가 걸려 있어(오디오/알림/저장/title) 팔로워에서 실행해도
+   * 부작용이 없다 — 화면 표시만 리더와 같아진다.
+   * @param {{state:string, remainingMs:number, totalMs:number}} data
+   */
+  _applyRemoteSync(data) {
+    if (this.isLeader || this._destroyed || !this._machine) return;
+    const target = data.state;
+    const cur = this._machine.state;
+
+    if (target === cur) {
+      if (target === 'running') this._clock.setRemaining(data.remainingMs);
+      this._totalMs = data.totalMs;
+      this._render();
+      return;
+    }
+
+    if (cur !== 'idle') {
+      this._schedule.reset();
+      this._machine.send('reset');
+    }
+    if (target === 'idle') {
+      this._totalMs = 0;
+      this._render();
+      return;
+    }
+
+    this._totalMs = data.totalMs;
+    this._machine.send('start'); // idle -> running (다이얼 조작 없이 직접 전이)
+    this._schedule.start(data.totalMs);
+    this._clock.setRemaining(data.remainingMs);
+
+    if (target === 'paused') {
+      this._schedule.pause();
+      this._machine.send('pause');
+    } else if (target === 'ringing') {
+      this._machine.send('expire'); // running -> ringing
+    }
+    this._render();
   }
 
   // ---- 복원 -----------------------------------------------------------------------
@@ -492,6 +580,7 @@ class FocusTimer extends HTMLElement {
     this._syncTitle();
     this._announce(`${Math.round(totalMs / 60000)}분 타이머 시작`);
     this._save();
+    this._broadcastSync();
     this._render();
   }
 
@@ -521,12 +610,16 @@ class FocusTimer extends HTMLElement {
       });
     }
     this._save();
+    this._broadcastSync();
     this._render();
   }
 
   // ---- 공개 API (spec §10) ---------------------------------------------------------
   setMinutes(n) {
-    this._setMinutesDirect(n);
+    // spec §10 은 setMinutes() 와 start() 를 별개 메서드로 나눈다 — 값만 정하고
+    // 시작은 별도로 호출하는 것이 API 계약과 맞다. 자동시작이 필요하면
+    // `ft.setMinutes(n); ft.start();` 처럼 명시적으로 잇는다.
+    this._previewMinutes(n);
   }
 
   start() {
@@ -543,6 +636,7 @@ class FocusTimer extends HTMLElement {
     this._schedule.pause();
     this._cancelAlarm();
     this._save();
+    this._broadcastSync();
     this._render();
   }
 
@@ -551,6 +645,7 @@ class FocusTimer extends HTMLElement {
     this._schedule.resume();
     this._armAlarm(this._schedule.remainingMs);
     this._save();
+    this._broadcastSync();
     this._render();
   }
 
@@ -570,6 +665,7 @@ class FocusTimer extends HTMLElement {
     this._totalMs = 0;
     if (this._cfg.titleSync) releaseTitle(this._instanceId, document);
     this._save(true);
+    this._broadcastSync();
     this._render();
   }
 
@@ -587,6 +683,7 @@ class FocusTimer extends HTMLElement {
     }
     this._armAlarm(newRemaining);
     this._save();
+    this._broadcastSync();
     this._render();
   }
 
@@ -615,6 +712,7 @@ class FocusTimer extends HTMLElement {
       this._totalMs = 0;
       this._save(true);
     }
+    this._broadcastSync();
     this._announce('완료');
     this._render();
   }
@@ -633,6 +731,7 @@ class FocusTimer extends HTMLElement {
       if (this._cfg.titleSync) releaseTitle(this._instanceId, document);
     }
     this._save(true);
+    this._broadcastSync();
   }
 
   previewAlarm() {

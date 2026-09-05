@@ -66,6 +66,12 @@ export function createLeaderElection(locksApi, channelName, options = {}) {
   const instanceId = options.instanceId || `ft-${++instanceSeq}-${Math.random().toString(36).slice(2, 8)}`;
 
   const listeners = new Set();
+  /** Generic broadcast subscribers — lets a caller (e.g. integration) piggyback
+   * its own message types (e.g. a 'sync' tick payload) on the same channel
+   * instead of opening a second BroadcastChannel. Added for spec §11 criterion
+   * 21 (followers mirroring the leader's live remaining time); does not change
+   * the existing `{ isLeader, onLeaderChange, release }` contract. */
+  const messageListeners = new Set();
   let leader = false;
   let released = false;
 
@@ -116,6 +122,13 @@ export function createLeaderElection(locksApi, channelName, options = {}) {
     if (mode === 'heartbeat' && data.type === 'leader-changed' && data.isLeader && leader) {
       const record = readRecord();
       if (record && record.id !== instanceId) setLeader(false, { via: 'broadcast' });
+    }
+    for (const cb of [...messageListeners]) {
+      try {
+        cb(data);
+      } catch {
+        /* a bad subscriber must not break election or mirroring */
+      }
     }
   }
 
@@ -220,6 +233,17 @@ export function createLeaderElection(locksApi, channelName, options = {}) {
       return () => listeners.delete(cb);
     },
     post,
+    /**
+     * Subscribe to every incoming broadcast message (from any other instance),
+     * regardless of type — used to mirror leader state to followers.
+     * @param {(data: object) => void} cb
+     * @returns {() => void} unsubscribe
+     */
+    onMessage(cb) {
+      if (typeof cb !== 'function') return () => {};
+      messageListeners.add(cb);
+      return () => messageListeners.delete(cb);
+    },
     /** Give up leadership so another tab can take over (spec: destroy()). */
     release() {
       if (released) return;
@@ -263,6 +287,7 @@ export function createLeaderElection(locksApi, channelName, options = {}) {
         channel = null;
       }
       listeners.clear();
+      messageListeners.clear();
     },
   };
 }
