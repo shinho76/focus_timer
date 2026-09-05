@@ -8,7 +8,7 @@
  * 수용 기준: 1, 2, 3, 4, 7
  */
 
-import { angleToAccum, accumToMinutes, minutesToAccum } from '../core/angle.js';
+import { angleToAccum, accumToMinutes, minutesToAccum, pointToAngle } from '../core/angle.js';
 
 /** @typedef {(minutes: number) => void} MinutesCallback */
 
@@ -120,9 +120,26 @@ export function attachPointer(dialEl, options = {}) {
   function beginDrag(e) {
     activePointerId = e.pointerId;
     moved = false;
-    accum = minutesToAccum(readCurrentMinutes());
-    lastAngle = angleAt(e, geometry());
-    lastMinutes = accumToMinutes(accum);
+    const g = geometry();
+    lastAngle = angleAt(e, g);
+
+    const dx = e.clientX - g.cx;
+    const dy = e.clientY - g.cy;
+    const inDeadZone = !(g.radius > 0) || Math.hypot(dx, dy) < minRadiusRatio * g.radius;
+
+    if (inDeadZone) {
+      // 중심 근처는 각도가 불안정하므로 기존처럼 현재 값에서 드래그를 이어간다.
+      lastMinutes = readCurrentMinutes();
+    } else {
+      // 분침/눈금 근처(데드존 밖)를 클릭하면 그 위치가 가리키는 시간으로 드래그를
+      // 시작한다(디자인 요청: "분침 근처를 클릭하면 해당 시간으로 설정"). 그대로
+      // 손을 떼면 onCommit 이 이 값을 그대로 커밋하고, 계속 끌면 여기서부터 상대
+      // 회전이 이어진다. pointToAngle 은 accum 과 같은 각도 좌표계(0°=12시,
+      // 시계방향)라 변환 없이 그대로 accumToMinutes 에 넣을 수 있다.
+      lastMinutes = snap(accumToMinutes(pointToAngle(dx, dy)), e.shiftKey);
+    }
+    accum = minutesToAccum(lastMinutes);
+
     dialEl.classList.add(DRAG_CLASS); // 드래그 중 텍스트 선택 방지 (spec §3.2) — CSS 클래스로, 인라인 style 로 하지 않는다
   }
 

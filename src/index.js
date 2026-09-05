@@ -529,6 +529,11 @@ class FocusTimer extends HTMLElement {
         this._render();
       },
       onCommit: (minutes) => {
+        // 다이얼 눈금 근처를 움직임 없이 클릭만 하고 뗀 경우(분침 근처 클릭 =
+        // 즉시 그 시간으로 설정) pointermove 가 한 번도 없어 onAngleChange 가
+        // idle→setting 전이를 못 시켰을 수 있다 — dialup(setting 전용 전이)을
+        // 보내기 전에 여기서도 같은 보정을 해준다.
+        if (this._machine.state === 'idle') this._machine.send('dialdown');
         this._selectedMinutes = minutes;
         if (this._cfg.autostartOnRelease) {
           if (this._machine.send('dialup')) this._startTimer(minutes);

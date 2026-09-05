@@ -167,6 +167,21 @@ describe('attachPointer — 각도 → 분 (기준 1)', () => {
     expect(values.every((v) => v % 5 === 0)).toBe(true);
     expect(values[values.length - 1]).toBe(10);
   });
+
+  it('데드존 밖을 움직임 없이 클릭만 하고 떼면, 그 위치가 가리키는 시간으로 바로 commit 된다 (디자인 요청: 분침 근처 클릭 = 해당 시간 설정)', () => {
+    handle = attachPointer(dial, cb);
+    fire('pointerdown', at(15)); // 현재값(0)과 다른 위치를 곧장 클릭
+    fire('pointerup', at(15)); // 중간에 pointermove 없음 — 순수 클릭
+    expect(cb.onAngleChange).not.toHaveBeenCalled();
+    expect(cb.onCommit).toHaveBeenCalledWith(15);
+  });
+
+  it('클릭 후 이어서 끌면, 클릭 지점을 새 기준으로 상대 회전이 이어진다', () => {
+    handle = attachPointer(dial, cb);
+    fire('pointerdown', at(15)); // 15분 지점을 클릭 — 그 지점이 새 기준
+    dragTo(15, 20); // 거기서 5분 더 회전
+    expect(cb.onAngleChange).toHaveBeenLastCalledWith(20);
+  });
 });
 
 describe('attachPointer — 0/60 경계 (기준 2)', () => {

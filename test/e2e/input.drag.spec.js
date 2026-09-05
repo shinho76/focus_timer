@@ -37,19 +37,21 @@ function pointAt(center, angleDeg, radiusRatio = 0.75) {
 test.describe('다이얼 드래그 (기준 1,2,3,7)', () => {
   test('0/60 경계를 넘어가도 반대편으로 튀지 않고 60에서 클램프된다 (기준 2)', async ({ page }) => {
     await gotoFresh(page);
-    // 다이얼은 절대 각도가 아니라 "언랩 누적 델타"로 동작한다 — pointerdown 을
-    // 어디서 하든 현재 값(기본 25분)이 기준점이 되고, 그 뒤 마우스 이동각의
-    // 델타만큼 더해진다. 그래서 API로 미리 58분을 세팅하지 않는다 —
-    // setMinutes() 는 idle 상태에서 §3.3 규칙대로 즉시 커밋·자동시작을 태워서
-    // 다이얼이 잠겨(disabled) 버린다. 대신 기본값(25분)에서 시작해 여러 프레임에
-    // 걸쳐 시계방향으로 충분히(+45분 상당, 270°) 돌려 60을 넘겨본다.
+    // 다이얼은 절대 각도가 아니라 "언랩 누적 델타"로 동작한다 — pointerdown 위치가
+    // (데드존 밖이면) 그 자체로 새 기준값이 되고("분침 근처 클릭 = 해당 시간 설정"
+    // 디자인 요청), 그 뒤 마우스 이동각의 델타만큼 더해진다. 그래서 API로 미리
+    // 58분을 세팅하지 않는다 — setMinutes() 는 idle 상태에서 §3.3 규칙대로 즉시
+    // 커밋·자동시작을 태워서 다이얼이 잠겨(disabled) 버린다. 대신 기본값(25분)
+    // 위치에서 pointerdown 해 그 값을 기준으로 삼고, 여러 프레임에 걸쳐 시계방향
+    // 으로 충분히(+45분 상당, 270°) 돌려 60을 넘겨본다.
     const center = await dialCenter(page);
-    const start = pointAt(center, 0);
+    const startDeg = 25 * 6;
+    const start = pointAt(center, startDeg);
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
 
     for (const deg of [60, 120, 180, 240, 300]) {
-      const p = pointAt(center, deg);
+      const p = pointAt(center, startDeg + deg);
       await page.mouse.move(p.x, p.y, { steps: 5 });
     }
 
