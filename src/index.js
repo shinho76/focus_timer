@@ -356,19 +356,23 @@ class FocusTimer extends HTMLElement {
   }
 
   /**
-   * 디자인 개편(③④, 3차 개정): 6개 테마 × 2개 게이지 = 12조합 전부에 실시간으로
-   * 닿을 수 있는 컨트롤. 텍스트 라벨을 걷어내고 순수하게 색/아이콘만으로
-   * 구분한다 — 테마 세그먼트는 버튼 전체를 그 테마의 강조색으로 채우고,
-   * 게이지 세그먼트는 "띠 모양"(segments, 점선 링 아이콘)과 "속이 균일한
-   * 색"(sector/파이차트, 꽉 찬 원 아이콘)으로 표현한다. 시각 장애 사용자를
+   * 디자인 개편(③④, 4차 개정): 6개 테마 × 2개 게이지 = 12조합 전부에 실시간으로
+   * 닿을 수 있는 컨트롤. 텍스트 라벨 없이 색/아이콘만으로 구분하고(테마 =
+   * 버튼 전체를 강조색으로, 게이지 = 점선 링/꽉 찬 원 아이콘), 두 그룹을 각각
+   * 별도 줄에 두던 것을 사용자가 "너무 크다"고 지적해 한 줄에 작게 붙였다
+   * (`.ft-segmented--compact` — 높이 1/3, 폭 절반 수준). 시각 장애 사용자를
    * 위한 이름은 `aria-label` 로만 남긴다.
    * @returns {HTMLElement}
    */
   _buildOptions() {
     const options = el('div', { class: 'ft-options', part: 'options' });
+    const row = el('div', { class: 'ft-option-row ft-option-row--compact' });
 
-    const themeRow = el('div', { class: 'ft-option-row' });
-    const themeGroup = el('div', { class: 'ft-segmented', role: 'group', 'aria-label': '테마' });
+    const themeGroup = el('div', {
+      class: 'ft-segmented ft-segmented--compact',
+      role: 'group',
+      'aria-label': '테마',
+    });
     this._themeButtons = THEMES.map(({ id, label }) => {
       const btn = el('button', {
         type: 'button',
@@ -380,11 +384,13 @@ class FocusTimer extends HTMLElement {
       themeGroup.append(btn);
       return btn;
     });
-    themeRow.append(themeGroup);
-    options.append(themeRow);
+    row.append(themeGroup);
 
-    const gaugeRow = el('div', { class: 'ft-option-row' }, el('span', { class: 'ft-option-label' }, '게이지'));
-    const gaugeGroup = el('div', { class: 'ft-segmented', role: 'group', 'aria-label': '게이지 스타일' });
+    const gaugeGroup = el('div', {
+      class: 'ft-segmented ft-segmented--compact',
+      role: 'group',
+      'aria-label': '게이지 스타일',
+    });
     this._gaugeButtons = GAUGE_STYLES.map(({ id, label }) => {
       const btn = el('button', {
         type: 'button',
@@ -397,9 +403,9 @@ class FocusTimer extends HTMLElement {
       gaugeGroup.append(btn);
       return btn;
     });
-    gaugeRow.append(gaugeGroup);
-    options.append(gaugeRow);
+    row.append(gaugeGroup);
 
+    options.append(row);
     return options;
   }
 

@@ -43,8 +43,8 @@ npm run build   # dist/focus-timer.js, dist/focus-timer.min.js 생성
 
 `--ft-bg` `--ft-gauge` `--ft-track` `--ft-text` `--ft-mark` `--ft-font` `--ft-radius`
 `--ft-chassis-bg` `--ft-chassis-fg` — 다이얼 판을 감싸는 "기기 베젤"의 배경/글자색. 6개 테마 어디서도
-재정의하지 않으므로 테마와 무관하게 항상 어둡다(기본 `#1c1c22`/`#e8e8ea`, 짙은 차콜톤). 밝은 배경을
-원하면 `focus-timer { --ft-chassis-bg: #fff; --ft-chassis-fg: #111; }` 처럼 오버라이드.
+재정의하지 않으므로 테마와 무관하게 항상 순검정이다(기본 `#000000`/`#e8e8ea`). 밝은 배경을 원하면
+`focus-timer { --ft-chassis-bg: #fff; --ft-chassis-fg: #111; }` 처럼 오버라이드.
 
 ## 위젯 안의 옵션 컨트롤
 
@@ -59,6 +59,10 @@ npm run build   # dist/focus-timer.js, dist/focus-timer.min.js 생성
   (연속 부채꼴, `gauge="sector"`). 텍스트 대신 아이콘으로 구분한다 — 점선 링(띠 모양) = segments,
   꽉 찬 원(균일한 색) = sector. 테마 6개 × 게이지 2개 = 12가지 조합 전부에 이 두 그룹만으로
   도달할 수 있다.
+
+테마·게이지 두 그룹은 한 줄에 작게(`.ft-segmented--compact`) 붙어 있다 — 프리셋 시간 버튼처럼
+매번 크게 보일 필요가 없는, 자주 안 바꾸는 설정이라 최소한의 자리만 차지한다. 버튼류(프리셋/±/
+시작·리셋·미리듣기/세그먼트)는 전부 순검정 배경 + 옅은 테두리로 통일했다.
 
 셋 다 다이얼의 "값"이 아니라 시간 설정이거나 순전히 겉모습이라 실행 중에도 언제든 바꿀 수 있다
 (프리셋은 idle/setting 에서만 의미가 있어 running 중엔 비활성화된다).
