@@ -205,6 +205,40 @@ function buildSlidersIcon() {
   return svg;
 }
 
+/**
+ * 전송(transport) 아이콘 4종 — 시작/일시정지/확인(정지)/리셋(되감기). 이모지
+ * (▶️/⏸️/⏹️/⏮️) 대신 SVG 로 그린다: 컬러 이모지는 플랫폼 폰트가 색을 고정
+ * 시켜(예: 재생 삼각형이 파란색) `currentColor` 로 재정의할 수 없다 —
+ * "전체 디자인에 맞게(검정/중립색으로)" 요청을 이모지로는 만족할 수 없어서
+ * 같은 시각 언어(currentColor 스트로크/필)를 쓰는 자체 아이콘으로 바꿨다.
+ * class 는 호출부에서 붙인다(전송 버튼용 vs 중앙 힌트용 크기가 다르다).
+ */
+function buildPlayIcon() {
+  const svg = svgEl('svg', { viewBox: '0 0 20 20', 'aria-hidden': 'true', focusable: 'false' });
+  svg.append(svgEl('polygon', { points: '6,4 16,10 6,16', fill: 'currentColor' }));
+  return svg;
+}
+
+function buildPauseIcon() {
+  const svg = svgEl('svg', { viewBox: '0 0 20 20', 'aria-hidden': 'true', focusable: 'false' });
+  svg.append(svgEl('rect', { x: 5, y: 4, width: 3.4, height: 12, rx: 1, fill: 'currentColor' }));
+  svg.append(svgEl('rect', { x: 11.6, y: 4, width: 3.4, height: 12, rx: 1, fill: 'currentColor' }));
+  return svg;
+}
+
+function buildStopIcon() {
+  const svg = svgEl('svg', { viewBox: '0 0 20 20', 'aria-hidden': 'true', focusable: 'false' });
+  svg.append(svgEl('rect', { x: 5, y: 5, width: 10, height: 10, rx: 1.5, fill: 'currentColor' }));
+  return svg;
+}
+
+function buildRewindIcon() {
+  const svg = svgEl('svg', { viewBox: '0 0 20 20', 'aria-hidden': 'true', focusable: 'false' });
+  svg.append(svgEl('polygon', { points: '17,5 17,15 10,10', fill: 'currentColor' }));
+  svg.append(svgEl('polygon', { points: '10,5 10,15 3,10', fill: 'currentColor' }));
+  return svg;
+}
+
 class FocusTimer extends HTMLElement {
   static get observedAttributes() {
     return ['theme', 'gauge', 'volume', 'alarm-length', 'flash', 'notify'];
@@ -414,12 +448,21 @@ class FocusTimer extends HTMLElement {
     // 비쳐 보인다("버튼을 시간과 함께 보이도록" 요청). 허브 크기(다이얼
     // 지름의 50%)에 맞춰 중앙에 배치했다. 다이얼 드래그(pointer.js)는
     // .ft-dial 에 붙어 있고 이 버튼은 stage 의 나중 자식이라 위에 그려져,
-    // 중앙을 누르면 드래그가 아니라 이 버튼이 클릭을 가져간다.
-    this._centerStartBtn = el('button', {
-      type: 'button',
-      class: 'ft-center-start',
-      'aria-label': '시작',
-    });
+    // 중앙을 누르면 드래그가 아니라 이 버튼이 클릭을 가져간다. 안에는
+    // 옅은 반투명 아이콘을 하나 얹어 "여기 누르면 시작/정지된다"는 걸
+    // 최소한으로 알린다(사용자 피드백 — 완전히 투명하면 눌러도 되는지
+    // 알 수 없다).
+    this._centerHintIcons = {
+      play: buildPlayIcon(),
+      pause: buildPauseIcon(),
+      stop: buildStopIcon(),
+    };
+    Object.values(this._centerHintIcons).forEach((svg) => svg.classList.add('ft-center-start-icon'));
+    this._centerStartBtn = el(
+      'button',
+      { type: 'button', class: 'ft-center-start', 'aria-label': '시작' },
+      this._centerHintIcons.play,
+    );
     stage.append(this._centerStartBtn);
     widget.append(stage);
 
@@ -454,16 +497,23 @@ class FocusTimer extends HTMLElement {
     // 동작이다 — 예전 라운드에서 설정 패널 안에 넣어뒀더니 "다시 찾기
     // 어렵다"는 피드백을 받아 시작 버튼 옆 상시 노출 위치로 옮겨져 있었다.
     const transportRow = el('div', { class: 'ft-transport' });
+    this._transportIcons = {
+      play: buildPlayIcon(),
+      pause: buildPauseIcon(),
+      stop: buildStopIcon(),
+    };
+    Object.values(this._transportIcons).forEach((svg) => svg.classList.add('ft-transport-icon'));
     this._primaryBtn = el(
       'button',
       { type: 'button', part: 'pause-button', class: 'ft-transport-btn', 'aria-label': '시작' },
-      '▶️',
+      this._transportIcons.play,
     );
     this._resetBtn = el(
       'button',
       { type: 'button', class: 'ft-transport-btn ft-transport-btn--ghost', 'aria-label': '리셋' },
-      '⏮️',
+      buildRewindIcon(),
     );
+    this._resetBtn.firstElementChild.classList.add('ft-transport-icon');
     transportRow.append(this._primaryBtn, this._resetBtn);
     controls.append(transportRow);
 
@@ -662,10 +712,10 @@ class FocusTimer extends HTMLElement {
       minMinutes: 1,
       maxMinutes: this._cfg.maxMinutes,
       getMinutes: () => this._selectedMinutes,
-      disabled: () => this._machine.state !== 'idle' && this._machine.state !== 'setting',
+      disabled: () => !this._isAdjustable(),
       onUnlockHint: () => this._audio.unlock(),
       onAngleChange: (minutes) => {
-        if (this._machine.state === 'idle') this._machine.send('dialdown');
+        this._enterSettingIfNeeded();
         this._selectedMinutes = minutes;
         this._dispatch('ft:set', { minutes });
         this._render();
@@ -681,7 +731,7 @@ class FocusTimer extends HTMLElement {
         // 다이얼 눈금 근처를 움직임 없이 클릭만 하고 뗀 경우(분침 근처 클릭 =
         // 즉시 그 시간으로 설정) pointermove 가 한 번도 없어 onAngleChange 가
         // idle→setting 전이를 못 시켰을 수 있다 — 여기서도 같은 보정을 해준다.
-        if (this._machine.state === 'idle') this._machine.send('dialdown');
+        this._enterSettingIfNeeded();
         this._selectedMinutes = minutes;
         this._dispatch('ft:set', { minutes });
         this._render();
@@ -695,7 +745,7 @@ class FocusTimer extends HTMLElement {
     this._keyboard = attachKeyboard(this._dialEl, {
       min: 1,
       max: this._cfg.maxMinutes,
-      disabled: () => this._machine.state !== 'idle' && this._machine.state !== 'setting',
+      disabled: () => !this._isAdjustable(),
       // 화살표/Home/End/PageUp/Down 은 전부 "연속 미세 조정" — 절대 자동시작하지
       // 않는다(_previewMinutes). 시작은 Space/Enter(onActivate→toggle) 또는
       // 프리셋 버튼처럼 명시적인 "단발 결정" 행동에서만 일어난다.
@@ -867,16 +917,44 @@ class FocusTimer extends HTMLElement {
   }
 
   /**
+   * idle/setting/paused 를 "조정 가능한" 상태로 묶는다(v1.6, 사용자 요청 —
+   * "일시정지 상태에서만 다이얼로 재조정 허용"). running/ringing 은 여전히
+   * 조작을 거부한다(spec §3.4, 수용 기준 7 — running 은 원안대로 유지).
+   */
+  _isAdjustable() {
+    const state = this._machine.state;
+    return state === 'idle' || state === 'setting' || state === 'paused';
+  }
+
+  /**
+   * idle 또는 paused 에서 조정 입력이 처음 들어오면 'setting' 으로 넘긴다.
+   * paused 에서 넘어가는 경우 이전 일시정지 세션은 버려지는 것이므로(§18.1
+   * 문서 참고) 알람·저장 기록·탭 타이틀을 reset() 과 동등하게 정리한다.
+   */
+  _enterSettingIfNeeded() {
+    const state = this._machine.state;
+    if (state !== 'idle' && state !== 'paused') return;
+    if (state === 'paused') {
+      this._cancelAlarm();
+      this._totalMs = 0;
+      if (this._storage) this._storage.clear();
+      if (this._cfg.titleSync) releaseTitle(this._instanceId, document);
+    }
+    this._machine.send('dialdown');
+  }
+
+  /**
    * "단발성 결정" 입력(프리셋 버튼 클릭)용 — 값을 커밋하고, 드래그를 놓았을 때와
    * 동등하게 autostart-on-release 정책을 따른다(spec §3.3 "동등한 병렬 수단").
    */
   _setMinutesDirect(minutes) {
     const state = this._machine.state;
-    if (state !== 'idle' && state !== 'setting') return;
-    if (state === 'idle') this._machine.send('dialdown');
+    if (!this._isAdjustable()) return;
+    const cameFromRest = state === 'idle' || state === 'paused';
+    this._enterSettingIfNeeded();
     this._selectedMinutes = snapMinutes(minutes, 1);
     this._dispatch('ft:set', { minutes: this._selectedMinutes });
-    if (this._cfg.autostartOnRelease && state === 'idle') {
+    if (this._cfg.autostartOnRelease && cameFromRest) {
       if (this._machine.send('dialup')) {
         this._startTimer(this._selectedMinutes);
         return;
@@ -892,21 +970,25 @@ class FocusTimer extends HTMLElement {
    * 의미와 맞지 않는다 — 시작은 별도로(Space/Enter, 시작 버튼, 또는 프리셋).
    */
   _previewMinutes(minutes) {
-    const state = this._machine.state;
-    if (state !== 'idle' && state !== 'setting') return;
-    if (state === 'idle') this._machine.send('dialdown');
+    if (!this._isAdjustable()) return;
+    this._enterSettingIfNeeded();
     this._selectedMinutes = snapMinutes(minutes, 1);
     this._dispatch('ft:set', { minutes: this._selectedMinutes });
     this._render();
   }
 
   _adjustMinutes(delta) {
-    if (this._machine.state === 'running') {
+    const state = this._machine.state;
+    if (state === 'running') {
       // §2.3: 실행 중 ±1분 미세 조정 — 남은 시간을 직접 늘리거나 줄인다.
       this.extend(delta * 60000);
       return;
     }
-    const next = Math.max(1, Math.min(this._cfg.maxMinutes, this._selectedMinutes + delta));
+    // paused 에서 처음 조정을 시작하면(아직 setting 진입 전) _selectedMinutes
+    // 는 시작 전 값 그대로라 신뢰할 수 없다 — 화면에 표시 중인 남은 시간을
+    // 기준으로 삼는다.
+    const base = state === 'paused' ? Math.round(this.remainingMs / 60000) : this._selectedMinutes;
+    const next = Math.max(1, Math.min(this._cfg.maxMinutes, base + delta));
     this._previewMinutes(next);
   }
 
@@ -1293,6 +1375,11 @@ class FocusTimer extends HTMLElement {
     if (this._destroyed || !this._dialContainer) return;
     const state = this._machine.state;
     const idleLike = state === 'idle' || state === 'setting';
+    // v1.6: "일시정지 상태에서만 다이얼로 재조정 허용" — paused 는 idleLike
+    // 표시(선택한 분/전체 게이지)로 바뀌진 않지만(아직 손대지 않았으니 실제
+    // 잔여 진행을 그대로 보여줘야 한다), 조작 가능 여부(disabled)만은
+    // idleLike 와 동등하게 취급한다.
+    const adjustable = idleLike || state === 'paused';
     const remainingMs = this.remainingMs;
 
     this._dialEl = renderDial(this._dialContainer, {
@@ -1300,7 +1387,7 @@ class FocusTimer extends HTMLElement {
       maxMinutes: this._cfg.maxMinutes,
       progress: idleLike ? 1 : this.progress,
       gauge: this._cfg.gauge,
-      disabled: !idleLike,
+      disabled: !adjustable,
       unit: '분',
       label: '집중 시간',
       locale: this._cfg.lang,
@@ -1322,9 +1409,11 @@ class FocusTimer extends HTMLElement {
 
     const primaryLabel =
       state === 'running' ? '일시정지' : state === 'paused' ? '재개' : state === 'ringing' ? '확인' : '시작';
-    const primaryEmoji =
-      state === 'running' ? '⏸️' : state === 'paused' ? '▶️' : state === 'ringing' ? '⏹️' : '▶️';
-    this._primaryBtn.textContent = primaryEmoji;
+    // 이모지(▶️/⏸️/⏹️)는 플랫폼 폰트가 색을 고정시켜(예: 파란 재생 삼각형)
+    // "전체 디자인에 맞게 검정/중립색으로" 바꿔달라는 요청을 만족할 수 없었다
+    // — currentColor 를 따르는 자체 SVG 아이콘(위 buildPlayIcon 등)으로 교체.
+    const primaryIconKey = state === 'running' ? 'pause' : state === 'ringing' ? 'stop' : 'play';
+    this._primaryBtn.replaceChildren(this._transportIcons[primaryIconKey]);
     this._primaryBtn.setAttribute('aria-label', primaryLabel);
     // 예전엔 'setting' 상태면 시작 버튼을 비활성화했다 — 'setting' 이 순간적인
     // 드래그 중 상태일 때만 그랬어도 됐지만, 미세 조정(키보드/±/다이얼 클릭)이
@@ -1332,9 +1421,12 @@ class FocusTimer extends HTMLElement {
     // 하면 시작 버튼이 영영 눌리지 않는" 버그였다 — 제거한다.
     this._primaryBtn.disabled = false;
     this._centerStartBtn.setAttribute('aria-label', primaryLabel);
+    // 시계 중앙의 반투명 힌트 아이콘도 같은 상태를 따라간다(옅은 색이라
+    // 시간 텍스트를 가리지 않으면서 "여기 누르면 됨"을 알린다).
+    this._centerStartBtn.replaceChildren(this._centerHintIcons[primaryIconKey]);
     this._numberInput.value = idleLike ? String(this._selectedMinutes) : '';
-    this._numberInput.disabled = !idleLike;
-    this._presetButtons.forEach((b) => (b.disabled = !idleLike));
+    this._numberInput.disabled = !adjustable;
+    this._presetButtons.forEach((b) => (b.disabled = !adjustable));
     this._deltaButtons.forEach((b) => (b.disabled = false));
 
     if (state === 'ringing' && this._cfg.flash) {

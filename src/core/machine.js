@@ -68,9 +68,16 @@ export const TRANSITIONS = Object.freeze({
   }),
   paused: Object.freeze({
     resume: 'running',
+    // v1.6: paused → dialdown → setting. 사용자 요청("일시정지 상태에서만
+    // 다이얼로 시간 재조정 허용")에 따라 §2.2 원안의 "정지 중 다이얼 조작
+    // 거부"를 running 에만 한정하고 paused 에는 새로 허용했다 — running
+    // 자체의 다이얼 거부(FORBIDDEN 목록의 7개 중 하나)는 그대로 유지된다.
+    // 커밋(dialup)까지는 안 간다 — 값만 정하고 나면 항상 'setting' 에
+    // 머물러 있다가, 사용자가 명시적으로 시작해야 진짜 새 세션이 된다.
+    dialdown: 'setting',
     reset: 'idle',
     destroy: 'destroyed',
-    // forbidden by absence: pause, dial manipulation
+    // forbidden by absence: pause
   }),
   ringing: Object.freeze({
     acknowledge: 'idle',

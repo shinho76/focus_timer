@@ -109,8 +109,8 @@ describe('the 7 forbidden transitions are silent no-ops (criterion 18)', () => {
     expect(m.state).toBe('running');
   });
 
-  it('6. dial manipulation while running (also paused / ringing) — spec §3.4', () => {
-    for (const state of ['running', 'paused', 'ringing']) {
+  it('6. dial manipulation while running/ringing rejected — spec §3.4', () => {
+    for (const state of ['running', 'ringing']) {
       const m = machineIn(state);
       for (const ev of ['dialdown', 'dialup', 'dialcancel']) {
         expect(() => m.send(ev)).not.toThrow();
@@ -118,6 +118,20 @@ describe('the 7 forbidden transitions are silent no-ops (criterion 18)', () => {
         expect(m.state).toBe(state);
       }
     }
+  });
+
+  it('6b. paused → dialdown → setting (v1.6, "일시정지 중에만 다이얼 재조정 허용"); dialup/dialcancel은 여전히 no-op', () => {
+    const m1 = machineIn('paused');
+    expect(m1.send('dialup')).toBe(false);
+    expect(m1.state).toBe('paused');
+
+    const m2 = machineIn('paused');
+    expect(m2.send('dialcancel')).toBe(false);
+    expect(m2.state).toBe('paused');
+
+    const m3 = machineIn('paused');
+    expect(m3.send('dialdown')).toBe(true);
+    expect(m3.state).toBe('setting');
   });
 
   it('7. every event after destroy', () => {

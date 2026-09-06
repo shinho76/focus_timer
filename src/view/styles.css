@@ -512,7 +512,9 @@
  * 허브 크기(다이얼 지름의 50%)에 맞춘 투명 버튼 — 배경이 없어 밑에 겹친
  * .ft-readout 의 시간 텍스트가 그대로 비쳐 보인다("버튼을 시간과 함께
  * 보이도록"). 정지 상태에서도 클릭 가능함을 알리는 최소한의 hover/active
- * 피드백만 준다.
+ * 피드백만 준다. v1.6: 완전히 투명하면 눌러도 되는지 알 수 없다는 피드백을
+ * 받아, 하단에 옅은 반투명 아이콘(재생/일시정지/정지)을 얹어 최소한의
+ * 어포던스를 남겼다 — 시간 숫자와 안 겹치도록 허브 아래쪽에 배치한다.
  */
 .ft-center-start {
   position: absolute;
@@ -521,10 +523,14 @@
   width: 50%;
   height: 50%;
   padding: 0;
+  padding-bottom: 12%;
   border: none;
   border-radius: 50%;
   background: transparent;
   cursor: pointer;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
 }
 
 .ft-center-start:hover:not(:disabled) {
@@ -538,6 +544,19 @@
 .ft-center-start:focus-visible {
   outline: 2px solid var(--ft-gauge);
   outline-offset: -4px;
+}
+
+.ft-center-start-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--ft-gauge);
+  opacity: 0.35;
+  transition: opacity 120ms ease;
+}
+
+.ft-center-start:hover .ft-center-start-icon,
+.ft-center-start:active .ft-center-start-icon {
+  opacity: 0.65;
 }
 
 /* ── 컨트롤: 프리셋/±/숫자입력/시작-리셋-미리듣기 ─────────────────────── */
@@ -631,14 +650,28 @@
 
 .ft-transport-btn {
   flex: 1 1 0;
-  font-size: 1.35rem;
-  line-height: 1;
-  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 12px;
 }
 
 .ft-transport-btn--ghost {
-  font-size: 1.1rem;
   opacity: 0.85;
+}
+
+/* v1.6: 이모지 대신 currentColor 를 따르는 자체 SVG 아이콘 — 색은 각 버튼의
+ * 텍스트 색(시작=액센트 배경 위 짙은 색, 리셋=중립 배경 위 밝은 회색)을
+ * 그대로 물려받는다("전체 디자인에 맞게 검정/중립색으로" 요청). */
+.ft-transport-icon {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+.ft-transport-btn--ghost .ft-transport-icon {
+  width: 18px;
+  height: 18px;
 }
 
 /* "미세 조정" 펼침 패널(±버튼·숫자입력) — 프리셋만으로 부족할 때만 쓰는
