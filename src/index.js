@@ -190,24 +190,18 @@ function buildGearIcon() {
   return svg;
 }
 
-/** "미세 조정" 펼침 토글용 쉐브론 아이콘 — aria-expanded 에 따라 CSS 로 뒤집는다. */
-function buildChevronIcon() {
+/** "미세 조정" 플로팅 버튼용 슬라이더(이퀄라이저) 아이콘 — ±조정을 은유한다. */
+function buildSlidersIcon() {
   const svg = svgEl('svg', {
-    class: 'ft-chevron-icon',
+    class: 'ft-fab-icon',
     viewBox: '0 0 20 20',
     'aria-hidden': 'true',
     focusable: 'false',
   });
-  svg.append(
-    svgEl('polyline', {
-      points: '5,7.5 10,12.5 15,7.5',
-      fill: 'none',
-      stroke: 'currentColor',
-      'stroke-width': 2,
-      'stroke-linecap': 'round',
-      'stroke-linejoin': 'round',
-    }),
-  );
+  svg.append(svgEl('line', { x1: 3, y1: 7, x2: 17, y2: 7, stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round' }));
+  svg.append(svgEl('circle', { cx: 8, cy: 7, r: 2.2, fill: 'currentColor' }));
+  svg.append(svgEl('line', { x1: 3, y1: 13, x2: 17, y2: 13, stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round' }));
+  svg.append(svgEl('circle', { cx: 13, cy: 13, r: 2.2, fill: 'currentColor' }));
   return svg;
 }
 
@@ -414,6 +408,19 @@ class FocusTimer extends HTMLElement {
 
     this._readoutContainer = el('div');
     stage.append(this._readoutContainer);
+
+    // 시계 중앙(허브)을 누르면 시작/일시정지/재개/확인이 되는 지름길 —
+    // 배경이 투명해 그 아래(readoutContainer)의 시간 텍스트가 그대로
+    // 비쳐 보인다("버튼을 시간과 함께 보이도록" 요청). 허브 크기(다이얼
+    // 지름의 50%)에 맞춰 중앙에 배치했다. 다이얼 드래그(pointer.js)는
+    // .ft-dial 에 붙어 있고 이 버튼은 stage 의 나중 자식이라 위에 그려져,
+    // 중앙을 누르면 드래그가 아니라 이 버튼이 클릭을 가져간다.
+    this._centerStartBtn = el('button', {
+      type: 'button',
+      class: 'ft-center-start',
+      'aria-label': '시작',
+    });
+    stage.append(this._centerStartBtn);
     widget.append(stage);
 
     this._liveRegion = el('div', {
@@ -440,30 +447,25 @@ class FocusTimer extends HTMLElement {
     this._presetButtons.forEach((b) => presetGroup.append(b));
     controls.append(presetGroup);
 
-    this._primaryBtn = el('button', { type: 'button', part: 'pause-button' }, '시작');
-    controls.append(this._primaryBtn);
-
-    // 리셋은 "저빈도 설정"이 아니라 실행/일시정지 중인 타이머를 즉시 되돌리는
-    // 상시 필요한 복구 동작이다 — 예전 라운드에서 설정 패널 안에 넣어뒀더니
-    // "다시 찾기 어렵다"는 사용자 피드백을 받아, 시작 버튼 옆 상시 노출
-    // 위치로 옮겼다(디자인 원칙: 저빈도 "설정" ≠ 상시 필요한 "제어").
-    this._resetBtn = el('button', { type: 'button' }, '리셋');
-    controls.append(this._resetBtn);
-
-    // "미세 조정"(±버튼·숫자입력) 펼침 토글 — 프리셋만으로는 부족한 미세 조정을
-    // 위한 것이라 상시 노출할 필요가 없다(디자인 종합의견: 상시 노출 컨트롤 축소).
-    this._finetuneToggle = el(
+    // 전송(transport) 버튼 — 카세트 플레이어처럼 이모지 아이콘 한 줄, 동일한
+    // 크기로 나란히(사용자 요청). 시작/일시정지/재개/확인은 상태에 따라 같은
+    // 버튼의 아이콘·aria-label 만 바뀐다(_render 참고). 리셋은 "저빈도 설정"이
+    // 아니라 실행/일시정지 중인 타이머를 즉시 되돌리는 상시 필요한 복구
+    // 동작이다 — 예전 라운드에서 설정 패널 안에 넣어뒀더니 "다시 찾기
+    // 어렵다"는 피드백을 받아 시작 버튼 옆 상시 노출 위치로 옮겨져 있었다.
+    const transportRow = el('div', { class: 'ft-transport' });
+    this._primaryBtn = el(
       'button',
-      {
-        type: 'button',
-        class: 'ft-finetune-toggle',
-        'aria-expanded': 'false',
-        'aria-label': '미세 조정 펼치기',
-      },
-      '미세 조정',
-      buildChevronIcon(),
+      { type: 'button', part: 'pause-button', class: 'ft-transport-btn', 'aria-label': '시작' },
+      '▶️',
     );
-    controls.append(this._finetuneToggle);
+    this._resetBtn = el(
+      'button',
+      { type: 'button', class: 'ft-transport-btn ft-transport-btn--ghost', 'aria-label': '리셋' },
+      '⏮️',
+    );
+    transportRow.append(this._primaryBtn, this._resetBtn);
+    controls.append(transportRow);
 
     this._finetunePanel = el('div', { class: 'ft-finetune', hidden: '' });
 
@@ -483,8 +485,34 @@ class FocusTimer extends HTMLElement {
 
     widget.append(controls);
 
-    // 유틸리티 바 — 목표 입력(+) 과 설정(톱니) 두 저빈도 진입점만 상시 노출한다.
+    // 유틸리티 바 — 미세 조정(±) · 목표 입력(+) · 설정(톱니), 전부 저빈도
+    // 진입점만 아이콘 버튼으로 상시 노출한다. 아이콘만으로는 처음 보는
+    // 사용자가 기능을 추측할 수 없다는 지적(디자인 종합의견) — 아이콘
+    // 버튼마다 짧은 캡션을 붙인다. 목표는 자주 쓰는 진입점이라 액센트색
+    // (.ft-fab) 그대로, 나머지는 저빈도라 중립색(--muted)으로 우선순위를
+    // 색으로도 구분했다.
     const utilityRow = el('div', { class: 'ft-utility-row' });
+
+    // "미세 조정"(±버튼·숫자입력) — 사용자 요청으로 컨트롤 줄의 텍스트+쉐브론
+    // 토글에서 "+" 버튼 앞에 오는 플로팅(FAB) 버튼으로 옮겼다. 프리셋만으로는
+    // 부족한 미세 조정을 위한 것이라 여전히 접혀 있다가 펼쳐진다.
+    this._finetuneToggle = el(
+      'button',
+      {
+        type: 'button',
+        class: 'ft-fab ft-fab--muted',
+        'aria-expanded': 'false',
+        'aria-label': '미세 조정 펼치기',
+      },
+      buildSlidersIcon(),
+    );
+    const finetuneGroup = el(
+      'div',
+      { class: 'ft-fab-group' },
+      this._finetuneToggle,
+      el('span', { class: 'ft-fab-label', 'aria-hidden': 'true' }, '조정'),
+    );
+
     this._goalInput = el('input', {
       type: 'text',
       class: 'ft-goal-input',
@@ -493,10 +521,6 @@ class FocusTimer extends HTMLElement {
       hidden: '',
       'aria-label': '오늘의 목표 입력',
     });
-    // 아이콘만으로는 처음 보는 사용자가 기능을 추측할 수 없다는 지적(디자인
-    // 종합의견) — 아이콘 버튼마다 짧은 캡션을 붙인다. 목표는 자주 쓰는
-    // 진입점이라 액센트색(.ft-fab) 그대로, 설정은 저빈도라 중립색(--muted)
-    // 으로 우선순위를 색으로도 구분했다.
     this._goalFab = el(
       'button',
       { type: 'button', class: 'ft-fab', 'aria-label': '오늘의 목표 설정' },
@@ -526,7 +550,7 @@ class FocusTimer extends HTMLElement {
       el('span', { class: 'ft-fab-label', 'aria-hidden': 'true' }, '설정'),
     );
 
-    utilityRow.append(this._goalInput, goalGroup, settingsGroup);
+    utilityRow.append(this._goalInput, finetuneGroup, goalGroup, settingsGroup);
     widget.append(utilityRow);
 
     // 설정 패널 — 테마/게이지/알람 미리듣기처럼 매 세션 쓰지 않는 기능을 한데
@@ -647,17 +671,20 @@ class FocusTimer extends HTMLElement {
         this._render();
       },
       onCommit: (minutes) => {
+        // 사용자 피드백: "분침을 누르면 바로 시작되는데, 시간 변경만 하고
+        // 시작 버튼을 눌러야 시작하게 해달라" — 다이얼 클릭/드래그는 값만
+        // 정하고 절대 자동 시작하지 않는다(autostart-on-release 속성과
+        // 무관하게, 다이얼에 한해 강제로 preview-only). 프리셋 버튼
+        // (_setMinutesDirect)은 여전히 그 속성을 따른다 — "단발 결정"
+        // 성격이 달라 예전 그대로 둔다.
+        //
         // 다이얼 눈금 근처를 움직임 없이 클릭만 하고 뗀 경우(분침 근처 클릭 =
         // 즉시 그 시간으로 설정) pointermove 가 한 번도 없어 onAngleChange 가
-        // idle→setting 전이를 못 시켰을 수 있다 — dialup(setting 전용 전이)을
-        // 보내기 전에 여기서도 같은 보정을 해준다.
+        // idle→setting 전이를 못 시켰을 수 있다 — 여기서도 같은 보정을 해준다.
         if (this._machine.state === 'idle') this._machine.send('dialdown');
         this._selectedMinutes = minutes;
-        if (this._cfg.autostartOnRelease) {
-          if (this._machine.send('dialup')) this._startTimer(minutes);
-        } else {
-          this._render();
-        }
+        this._dispatch('ft:set', { minutes });
+        this._render();
       },
       onCancel: () => {
         if (this._machine.state === 'setting') this._machine.send('dialcancel');
@@ -693,6 +720,10 @@ class FocusTimer extends HTMLElement {
 
     this._onPrimary = () => this.toggle();
     this._primaryBtn.addEventListener('click', this._onPrimary);
+    // 시계 중앙을 눌러도 시작/일시정지/재개/확인 — 같은 토글 핸들러를 공유한다
+    // (사용자 요청: "시계 중앙에 설정된 시간을 클릭하면 시작하게 해줘").
+    this._onCenterStart = () => this.toggle();
+    this._centerStartBtn.addEventListener('click', this._onCenterStart);
     this._onReset = () => this.reset();
     this._resetBtn.addEventListener('click', this._onReset);
     this._onPreview = () => this._audio.previewAlarm(this._cfg.volume);
@@ -1235,6 +1266,7 @@ class FocusTimer extends HTMLElement {
     (this._deltaDetach || []).forEach((d) => d());
     if (this._numberDetach) this._numberDetach();
     if (this._primaryBtn) this._primaryBtn.removeEventListener('click', this._onPrimary);
+    if (this._centerStartBtn) this._centerStartBtn.removeEventListener('click', this._onCenterStart);
     if (this._resetBtn) this._resetBtn.removeEventListener('click', this._onReset);
     if (this._previewBtn) this._previewBtn.removeEventListener('click', this._onPreview);
     (this._themeButtons || []).forEach((b) => b.removeEventListener('click', this._onThemeClick));
@@ -1288,9 +1320,18 @@ class FocusTimer extends HTMLElement {
       locale: this._cfg.lang,
     });
 
-    this._primaryBtn.textContent =
+    const primaryLabel =
       state === 'running' ? '일시정지' : state === 'paused' ? '재개' : state === 'ringing' ? '확인' : '시작';
-    this._primaryBtn.disabled = state === 'setting';
+    const primaryEmoji =
+      state === 'running' ? '⏸️' : state === 'paused' ? '▶️' : state === 'ringing' ? '⏹️' : '▶️';
+    this._primaryBtn.textContent = primaryEmoji;
+    this._primaryBtn.setAttribute('aria-label', primaryLabel);
+    // 예전엔 'setting' 상태면 시작 버튼을 비활성화했다 — 'setting' 이 순간적인
+    // 드래그 중 상태일 때만 그랬어도 됐지만, 미세 조정(키보드/±/다이얼 클릭)이
+    // 전부 'setting' 에 계속 머무는 지금은 이 조건이 곧 "미세 조정을 한 번이라도
+    // 하면 시작 버튼이 영영 눌리지 않는" 버그였다 — 제거한다.
+    this._primaryBtn.disabled = false;
+    this._centerStartBtn.setAttribute('aria-label', primaryLabel);
     this._numberInput.value = idleLike ? String(this._selectedMinutes) : '';
     this._numberInput.disabled = !idleLike;
     this._presetButtons.forEach((b) => (b.disabled = !idleLike));
